@@ -2,15 +2,15 @@ import type {
   CompileContextInput,
   CompiledContext,
   ContextHead,
-} from '@llm-graph/context-engine';
-import type { GraphSnapshot, JsonValue } from '@llm-graph/domain';
+} from '@waterlily/context-engine';
+import type { GraphSnapshot, JsonValue } from '@waterlily/domain';
 import type {
   ChatProvider,
   ChatRequest,
   ChatStreamEvent,
   FinishReason,
   UsageEvent,
-} from '@llm-graph/providers';
+} from '@waterlily/providers';
 
 export interface NewMessageNode {
   readonly blockId: string;

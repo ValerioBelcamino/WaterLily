@@ -60,7 +60,7 @@ button:disabled {
   border: 0;
 }
 
-.workbench-shell {
+.waterlily-shell {
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
   min-height: 100%;
@@ -1152,7 +1152,7 @@ button:disabled {
 }
 
 @media (max-width: 1050px) {
-  .workbench-shell {
+  .waterlily-shell {
     grid-template-columns: 72px minmax(0, 1fr);
   }
 

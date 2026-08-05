@@ -1,5 +1,5 @@
 export const GRAPH_DOCUMENT_SCHEMA = {
-  $id: 'https://llm-graph-workbench.dev/schemas/graph-document-v1.json',
+  $id: 'https://waterlily.dev/schemas/graph-document-v1.json',
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   additionalProperties: false,
   properties: {
@@ -13,7 +13,7 @@ export const GRAPH_DOCUMENT_SCHEMA = {
       required: ['name', 'version'],
       type: 'object',
     },
-    format: { const: 'llm-graph-workbench/graph' },
+    format: { const: 'waterlily/graph' },
     graph: { type: 'object' },
     schemaVersion: { const: 1 },
     view: {
@@ -34,6 +34,6 @@ export const GRAPH_DOCUMENT_SCHEMA = {
     'schemaVersion',
     'view',
   ],
-  title: 'LLM Graph Workbench graph document',
+  title: 'WaterLily graph document',
   type: 'object',
 } as const;

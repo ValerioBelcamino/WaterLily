@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { GraphNode } from '@llm-graph/domain';
+import type { GraphNode } from '@waterlily/domain';
 
 import { sampleGraph } from './sampleGraph';
 import { Inspector } from './Inspector';

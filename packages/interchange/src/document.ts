@@ -1,4 +1,4 @@
-import { validateGraph, type GraphSnapshot } from '@llm-graph/domain';
+import { validateGraph, type GraphSnapshot } from '@waterlily/domain';
 
 import { canonicalJson, sha256 } from './canonical.js';
 import { failInterchange, InterchangeError } from './errors.js';
@@ -12,7 +12,7 @@ import type {
   GraphViewState,
 } from './types.js';
 
-const FORMAT = 'llm-graph-workbench/graph';
+const FORMAT = 'waterlily/graph';
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/u;

@@ -12,10 +12,10 @@ future migrations.
 
 ## Version 1 container
 
-Version 1 is canonical UTF-8 JSON with the format identifier
-`llm-graph-workbench/graph`, schema version `1`, exporter metadata, an immutable
-graph snapshot, positions, and presentation groups. It is supported only when
-the graph contains no attachment blocks.
+Version 1 is canonical UTF-8 JSON with the format identifier `waterlily/graph`,
+schema version `1`, exporter metadata, an immutable graph snapshot, positions,
+and presentation groups. It is supported only when the graph contains no
+attachment blocks.
 
 The future portable `.llmgraph` attachment container will be a ZIP archive:
 

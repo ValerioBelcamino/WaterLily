@@ -1,11 +1,11 @@
-import { compileContext } from '@llm-graph/context-engine';
+import { compileContext } from '@waterlily/context-engine';
 import {
   connectContext,
   createNode,
   reviseNode,
   type GraphSnapshot,
-} from '@llm-graph/domain';
-import type { ChatProvider, ChatStreamEvent } from '@llm-graph/providers';
+} from '@waterlily/domain';
+import type { ChatProvider, ChatStreamEvent } from '@waterlily/providers';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

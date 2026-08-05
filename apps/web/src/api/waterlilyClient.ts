@@ -5,9 +5,9 @@ import {
   type GenerationStreamItem,
   type ProviderDescriptor,
   type WorkspaceSnapshot,
-} from '@llm-graph/api-contract';
+} from '@waterlily/api-contract';
 
-export class WorkbenchApiError extends Error {
+export class WaterLilyApiError extends Error {
   public constructor(
     public readonly code: string,
     message: string,
@@ -15,7 +15,7 @@ export class WorkbenchApiError extends Error {
     options: { readonly cause?: unknown } = {},
   ) {
     super(message, { cause: options.cause });
-    this.name = 'WorkbenchApiError';
+    this.name = 'WaterLilyApiError';
   }
 }
 
@@ -25,7 +25,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function apiError(value: unknown, status: number): WorkbenchApiError {
+function apiError(value: unknown, status: number): WaterLilyApiError {
   if (typeof value === 'object' && value !== null && 'error' in value) {
     const error = value.error;
     if (
@@ -36,9 +36,9 @@ function apiError(value: unknown, status: number): WorkbenchApiError {
       typeof error.code === 'string' &&
       typeof error.message === 'string'
     )
-      return new WorkbenchApiError(error.code, error.message, status);
+      return new WaterLilyApiError(error.code, error.message, status);
   }
-  return new WorkbenchApiError(
+  return new WaterLilyApiError(
     'INVALID_RESPONSE',
     'The local service returned an invalid error response',
     status,
@@ -49,7 +49,7 @@ async function responseJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
   } catch (cause) {
-    throw new WorkbenchApiError(
+    throw new WaterLilyApiError(
       'INVALID_RESPONSE',
       'The local service returned invalid JSON',
       response.status,
@@ -66,14 +66,14 @@ async function checkedJson(response: Response): Promise<unknown> {
 
 function providerDescriptors(value: unknown): readonly ProviderDescriptor[] {
   if (!isRecord(value) || !('providers' in value))
-    throw new WorkbenchApiError(
+    throw new WaterLilyApiError(
       'INVALID_RESPONSE',
       'The local service health response is invalid',
       200,
     );
   const providersValue: unknown = value.providers;
   if (!Array.isArray(providersValue))
-    throw new WorkbenchApiError(
+    throw new WaterLilyApiError(
       'INVALID_RESPONSE',
       'The local service provider list is invalid',
       200,
@@ -91,7 +91,7 @@ function providerDescriptors(value: unknown): readonly ProviderDescriptor[] {
       typeof provider.id !== 'string' ||
       typeof provider.name !== 'string'
     )
-      throw new WorkbenchApiError(
+      throw new WaterLilyApiError(
         'INVALID_RESPONSE',
         'The local service returned an invalid provider',
         200,
@@ -112,7 +112,7 @@ async function decodeGeneration(
   if (!response.ok)
     throw apiError(await responseJson(response), response.status);
   if (response.body === null)
-    throw new WorkbenchApiError(
+    throw new WaterLilyApiError(
       'INVALID_RESPONSE',
       'The generation response has no stream',
       response.status,
@@ -130,7 +130,7 @@ async function decodeGeneration(
     try {
       item = parseGenerationStreamLine(line.trimEnd());
     } catch (cause) {
-      throw new WorkbenchApiError(
+      throw new WaterLilyApiError(
         'INVALID_RESPONSE',
         'The local service returned an invalid generation event',
         response.status,
@@ -139,7 +139,7 @@ async function decodeGeneration(
     }
     onItem(item);
     if (item.type === 'generation-error')
-      throw new WorkbenchApiError(
+      throw new WaterLilyApiError(
         item.error.code,
         item.error.message,
         response.status,
@@ -159,7 +159,7 @@ async function decodeGeneration(
   buffer += decoder.decode();
   consume(buffer);
   if (streamState.completed === null)
-    throw new WorkbenchApiError(
+    throw new WaterLilyApiError(
       'INCOMPLETE_RESPONSE',
       'The generation stream ended before committing a response',
       response.status,
@@ -167,7 +167,7 @@ async function decodeGeneration(
   return streamState.completed;
 }
 
-export class WorkbenchClient {
+export class WaterLilyClient {
   readonly #fetch: FetchClient;
 
   public constructor(fetchClient: FetchClient = globalThis.fetch) {
@@ -193,8 +193,8 @@ export class WorkbenchClient {
     try {
       return parseWorkspaceSnapshot(await checkedJson(response));
     } catch (cause) {
-      if (cause instanceof WorkbenchApiError) throw cause;
-      throw new WorkbenchApiError(
+      if (cause instanceof WaterLilyApiError) throw cause;
+      throw new WaterLilyApiError(
         'INVALID_RESPONSE',
         'The local service returned an invalid workspace',
         response.status,
@@ -221,8 +221,8 @@ export class WorkbenchClient {
     try {
       return parseWorkspaceSnapshot(await checkedJson(response));
     } catch (cause) {
-      if (cause instanceof WorkbenchApiError) throw cause;
-      throw new WorkbenchApiError(
+      if (cause instanceof WaterLilyApiError) throw cause;
+      throw new WaterLilyApiError(
         'INVALID_RESPONSE',
         'The local service returned an invalid saved workspace',
         response.status,

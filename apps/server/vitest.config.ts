@@ -5,25 +5,25 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@llm-graph/api-contract': fileURLToPath(
+      '@waterlily/api-contract': fileURLToPath(
         new URL('../../packages/api-contract/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/context-engine': fileURLToPath(
+      '@waterlily/context-engine': fileURLToPath(
         new URL('../../packages/context-engine/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/database': fileURLToPath(
+      '@waterlily/database': fileURLToPath(
         new URL('../../packages/database/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/domain': fileURLToPath(
+      '@waterlily/domain': fileURLToPath(
         new URL('../../packages/domain/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/interchange': fileURLToPath(
+      '@waterlily/interchange': fileURLToPath(
         new URL('../../packages/interchange/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/providers': fileURLToPath(
+      '@waterlily/providers': fileURLToPath(
         new URL('../../packages/providers/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/workflows': fileURLToPath(
+      '@waterlily/workflows': fileURLToPath(
         new URL('../../packages/workflows/src/index.ts', import.meta.url),
       ),
     },

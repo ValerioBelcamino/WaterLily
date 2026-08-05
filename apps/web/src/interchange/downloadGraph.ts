@@ -1,8 +1,8 @@
-import type { GraphSnapshot } from '@llm-graph/domain';
+import type { GraphSnapshot } from '@waterlily/domain';
 import {
   exportGraphDocument,
   type GraphViewState,
-} from '@llm-graph/interchange';
+} from '@waterlily/interchange';
 
 export interface DownloadGraphInput {
   readonly exportedAt: string;
@@ -15,7 +15,7 @@ export async function downloadGraph(
 ): Promise<string> {
   const exported = await exportGraphDocument({
     exportedAt: input.exportedAt,
-    exporter: { name: 'LLM Graph Workbench', version: '0.0.0' },
+    exporter: { name: 'WaterLily', version: '0.0.0' },
     graph: input.graph,
     view: input.view,
   });

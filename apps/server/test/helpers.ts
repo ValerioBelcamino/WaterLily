@@ -1,15 +1,15 @@
 import type {
   WorkspaceSnapshot,
   WorkspaceStateV1,
-} from '@llm-graph/api-contract';
-import { DatabaseError } from '@llm-graph/database';
+} from '@waterlily/api-contract';
+import { DatabaseError } from '@waterlily/database';
 import {
   connectContext,
   createGraph,
   createNode,
   type GraphSnapshot,
-} from '@llm-graph/domain';
-import type { ChatProvider, ChatStreamEvent } from '@llm-graph/providers';
+} from '@waterlily/domain';
+import type { ChatProvider, ChatStreamEvent } from '@waterlily/providers';
 
 import type { WorkspaceStore } from '../src/types.js';
 

@@ -14,7 +14,7 @@ import type {
   MessageRole,
   NodeKind,
   ProvenanceRelation,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 export const graphs = sqliteTable('graphs', {
   createdAt: text('created_at').notNull(),

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createGraph, reviseNode, type GraphSnapshot } from '@llm-graph/domain';
+import { createGraph, reviseNode, type GraphSnapshot } from '@waterlily/domain';
 
 import {
   DatabaseError,

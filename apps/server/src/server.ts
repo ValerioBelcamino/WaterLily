@@ -7,18 +7,18 @@ import {
   serializeNdjson,
   type GenerationStreamItem,
   type WorkspaceSnapshot,
-} from '@llm-graph/api-contract';
-import { DatabaseError } from '@llm-graph/database';
-import { ProviderError } from '@llm-graph/providers';
+} from '@waterlily/api-contract';
+import { DatabaseError } from '@waterlily/database';
+import { ProviderError } from '@waterlily/providers';
 import {
   applyGenerationCommit,
   runGeneration,
   WorkflowError,
-} from '@llm-graph/workflows';
+} from '@waterlily/workflows';
 
 import type {
   RegisteredProvider,
-  WorkbenchHandlerOptions,
+  WaterLilyHandlerOptions,
   WorkspaceStore,
 } from './types.js';
 
@@ -221,8 +221,8 @@ function commitLatest(
 
 function generationResponse(
   requestValue: unknown,
-  options: Required<Pick<WorkbenchHandlerOptions, 'createId' | 'now'>> &
-    WorkbenchHandlerOptions,
+  options: Required<Pick<WaterLilyHandlerOptions, 'createId' | 'now'>> &
+    WaterLilyHandlerOptions,
 ): Response {
   const abortController = new AbortController();
   let cancelled = false;
@@ -298,8 +298,8 @@ function generationResponse(
   });
 }
 
-export function createWorkbenchHandler(
-  options: WorkbenchHandlerOptions,
+export function createWaterLilyHandler(
+  options: WaterLilyHandlerOptions,
 ): (request: Request) => Promise<Response> {
   const resolved = {
     ...options,
@@ -316,7 +316,7 @@ export function createWorkbenchHandler(
       if (request.method === 'GET' && url.pathname === '/api/health')
         return jsonResponse({
           providers: resolved.providers.map((provider) => provider.descriptor),
-          service: 'llm-graph-workbench',
+          service: 'waterlily',
           version: '0.0.0',
         });
       const graphId = graphIdFromPath(url.pathname);

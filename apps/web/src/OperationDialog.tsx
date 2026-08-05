@@ -241,7 +241,7 @@ export function OperationDialog({
                   required
                   value={json}
                   onChange={(event) => setJson(event.target.value)}
-                  placeholder="Paste llm-graph-workbench/graph JSON…"
+                  placeholder="Paste waterlily/graph JSON…"
                 />
               </label>
               <small>

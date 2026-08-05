@@ -2,19 +2,19 @@ import {
   compileContext,
   type CompiledContext,
   type CompiledContextItem,
-} from '@llm-graph/context-engine';
+} from '@waterlily/context-engine';
 import {
   connectContext,
   createNode,
   type GraphSnapshot,
   type JsonValue,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 import type {
   ChatMessage,
   ChatRequest,
   ChatStreamEvent,
   UsageEvent,
-} from '@llm-graph/providers';
+} from '@waterlily/providers';
 
 import { failWorkflow } from './errors.js';
 import type {

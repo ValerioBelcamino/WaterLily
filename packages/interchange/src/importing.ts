@@ -5,7 +5,7 @@ import {
   type GraphSnapshot,
   type JsonValue,
   type NodeRevision,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import { failInterchange } from './errors.js';
 import { parseGraphDocument, validateGraphDocument } from './document.js';

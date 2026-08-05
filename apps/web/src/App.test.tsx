@@ -3,22 +3,22 @@ import userEvent from '@testing-library/user-event';
 import {
   createGraphDocument,
   serializeGraphDocument,
-} from '@llm-graph/interchange';
+} from '@waterlily/interchange';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  useWorkbenchService,
-  type WorkbenchServiceState,
-} from './api/useWorkbenchService';
+  useWaterLilyService,
+  type WaterLilyServiceState,
+} from './api/useWaterLilyService';
 import { App } from './App';
 import { sampleGraph } from './sampleGraph';
-import { useWorkbenchStore } from './state/workbenchStore';
+import { useWaterLilyStore } from './state/waterlilyStore';
 
-vi.mock('./api/useWorkbenchService', () => ({ useWorkbenchService: vi.fn() }));
+vi.mock('./api/useWaterLilyService', () => ({ useWaterLilyService: vi.fn() }));
 
 function serviceState(
-  overrides: Partial<WorkbenchServiceState> = {},
-): WorkbenchServiceState {
+  overrides: Partial<WaterLilyServiceState> = {},
+): WaterLilyServiceState {
   return {
     cancel: vi.fn(),
     generate: vi.fn(() => Promise.resolve()),
@@ -40,8 +40,8 @@ function serviceState(
 
 describe('App', () => {
   beforeEach(() => {
-    useWorkbenchStore.getState().reset();
-    vi.mocked(useWorkbenchService).mockReturnValue(serviceState());
+    useWaterLilyStore.getState().reset();
+    vi.mocked(useWaterLilyService).mockReturnValue(serviceState());
   });
 
   it('presents graph metadata and the selected node on the canvas', () => {
@@ -75,7 +75,7 @@ describe('App', () => {
     expect(
       screen.getByRole('complementary', { name: 'Node inspector' }),
     ).toHaveTextContent('Core question');
-    expect(useWorkbenchStore.getState().selectedNodeId).toBe('node-question');
+    expect(useWaterLilyStore.getState().selectedNodeId).toBe('node-question');
   });
 
   it('branches and toggles the selected node context explicitly', async () => {
@@ -90,7 +90,7 @@ describe('App', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Branch from node' }));
 
-    const state = useWorkbenchStore.getState();
+    const state = useWaterLilyStore.getState();
     expect(Object.keys(state.graph.nodes)).toHaveLength(8);
     expect(Object.keys(state.graph.edges)).toHaveLength(9);
     expect(state.graph.nodes[state.selectedNodeId ?? '']).toMatchObject({
@@ -102,7 +102,7 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'Included' }));
     expect(
-      useWorkbenchStore.getState().contextSelections[
+      useWaterLilyStore.getState().contextSelections[
         state.selectedNodeId ?? ''
       ],
     ).toEqual({ mode: 'excluded' });
@@ -123,7 +123,7 @@ describe('App', () => {
       screen.getByRole('button', { name: 'Split node into excerpts' }),
     );
 
-    const state = useWorkbenchStore.getState();
+    const state = useWaterLilyStore.getState();
     expect(Object.keys(state.graph.nodes)).toHaveLength(9);
     expect(state.selectedNodeIds).toHaveLength(2);
     expect(
@@ -140,8 +140,8 @@ describe('App', () => {
 
   it('merges a shift-style multi-selection in its explicit order', async () => {
     const user = userEvent.setup();
-    useWorkbenchStore.getState().selectNode('node-answer');
-    useWorkbenchStore.getState().selectNode('node-side-answer', true);
+    useWaterLilyStore.getState().selectNode('node-answer');
+    useWaterLilyStore.getState().selectNode('node-side-answer', true);
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: /Merge/ }));
@@ -154,7 +154,7 @@ describe('App', () => {
       screen.getByRole('button', { name: 'Merge selected branches' }),
     );
 
-    const state = useWorkbenchStore.getState();
+    const state = useWaterLilyStore.getState();
     const mergeNodeId = state.selectedNodeId;
     expect(mergeNodeId).not.toBeNull();
     expect(
@@ -169,8 +169,8 @@ describe('App', () => {
 
   it('groups a multi-selection and imports a remapped graph document', async () => {
     const user = userEvent.setup();
-    useWorkbenchStore.getState().selectNode('node-answer');
-    useWorkbenchStore.getState().selectNode('node-side-answer', true);
+    useWaterLilyStore.getState().selectNode('node-answer');
+    useWaterLilyStore.getState().selectNode('node-side-answer', true);
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: 'Group' }));
@@ -178,7 +178,7 @@ describe('App', () => {
     await user.click(
       screen.getByRole('button', { name: 'Group selected nodes' }),
     );
-    expect(useWorkbenchStore.getState().groups[0]).toMatchObject({
+    expect(useWaterLilyStore.getState().groups[0]).toMatchObject({
       nodeIds: ['node-answer', 'node-side-answer'],
       title: 'Exam review',
     });
@@ -194,7 +194,7 @@ describe('App', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Validate & import' }));
 
-    expect(Object.keys(useWorkbenchStore.getState().graph.nodes)).toHaveLength(
+    expect(Object.keys(useWaterLilyStore.getState().graph.nodes)).toHaveLength(
       14,
     );
     expect(screen.getByText('Imported 7 nodes.')).toBeVisible();
@@ -204,7 +204,7 @@ describe('App', () => {
     const user = userEvent.setup();
     const generate = vi.fn(() => Promise.resolve());
     const setSelectedProviderId = vi.fn();
-    vi.mocked(useWorkbenchService).mockReturnValue(
+    vi.mocked(useWaterLilyService).mockReturnValue(
       serviceState({
         providers: [
           {
@@ -239,7 +239,7 @@ describe('App', () => {
   it('surfaces service errors and delegates active-generation cancellation', async () => {
     const user = userEvent.setup();
     const cancel = vi.fn();
-    vi.mocked(useWorkbenchService).mockReturnValue(
+    vi.mocked(useWaterLilyService).mockReturnValue(
       serviceState({
         cancel,
         generation: {
@@ -268,7 +268,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /Stop/ }));
     expect(cancel).toHaveBeenCalledOnce();
 
-    vi.mocked(useWorkbenchService).mockReturnValue(
+    vi.mocked(useWaterLilyService).mockReturnValue(
       serviceState({
         serviceError: 'Local service unavailable',
         status: 'offline',

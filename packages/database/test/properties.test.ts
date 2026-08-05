@@ -6,7 +6,7 @@ import {
   createGraph,
   createNode,
   type GraphSnapshot,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import { GraphRepository, openGraphDatabase } from '../src/index.js';
 import { timestamp } from './helpers.js';

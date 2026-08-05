@@ -8,7 +8,7 @@ import {
   type GraphNode,
   type GraphSnapshot,
   type NodeRevision,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import { DatabaseError, failDatabase } from './errors.js';
 import { graphEdges, graphNodes, graphs, nodeRevisions } from './schema.js';

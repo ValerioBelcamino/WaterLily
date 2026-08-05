@@ -1,4 +1,4 @@
-import type { GraphSnapshot } from '@llm-graph/domain';
+import type { GraphSnapshot } from '@waterlily/domain';
 
 export interface CanvasPosition {
   readonly x: number;
@@ -24,7 +24,7 @@ export interface GraphDocumentV1 {
     readonly name: string;
     readonly version: string;
   };
-  readonly format: 'llm-graph-workbench/graph';
+  readonly format: 'waterlily/graph';
   readonly graph: GraphSnapshot;
   readonly schemaVersion: 1;
   readonly view: GraphViewState;

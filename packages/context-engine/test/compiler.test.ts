@@ -6,7 +6,7 @@ import {
   connectReference,
   reviseNode,
   type GraphSnapshot,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import { compileContext, type ContextHead } from '../src/index.js';
 import {

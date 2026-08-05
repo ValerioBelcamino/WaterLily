@@ -5,10 +5,10 @@
 
 ## Context
 
-The workbench must run against paid hosted APIs and local inference servers
-without letting any provider SDK define the graph model. Streaming is also a
-durability boundary: partial output must be observable without pretending it is
-a completed immutable graph revision.
+WaterLily must run against paid hosted APIs and local inference servers without
+letting any provider SDK define the graph model. Streaming is also a durability
+boundary: partial output must be observable without pretending it is a completed
+immutable graph revision.
 
 DeepSeek's current Chat Completions API and common local servers expose an
 OpenAI-compatible `POST /chat/completions` endpoint. DeepSeek streams data-only

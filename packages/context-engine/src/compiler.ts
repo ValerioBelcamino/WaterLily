@@ -5,7 +5,7 @@ import {
   type GraphNode,
   type GraphSnapshot,
   type NodeRevision,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import { canonicalJson, sha256 } from './canonical.js';
 import { failContext } from './errors.js';

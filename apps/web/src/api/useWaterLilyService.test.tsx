@@ -3,18 +3,18 @@ import type {
   GenerationStreamItem,
   ProviderDescriptor,
   WorkspaceSnapshot,
-} from '@llm-graph/api-contract';
+} from '@waterlily/api-contract';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { sampleGraph } from '../sampleGraph';
-import { useWorkbenchStore } from '../state/workbenchStore';
+import { useWaterLilyStore } from '../state/waterlilyStore';
 import {
-  useWorkbenchService,
-  type UseWorkbenchServiceOptions,
-} from './useWorkbenchService';
+  useWaterLilyService,
+  type UseWaterLilyServiceOptions,
+} from './useWaterLilyService';
 
-type ServiceClient = NonNullable<UseWorkbenchServiceOptions['client']>;
+type ServiceClient = NonNullable<UseWaterLilyServiceOptions['client']>;
 
 const providers: readonly ProviderDescriptor[] = [
   {
@@ -52,9 +52,9 @@ function createClient(overrides: Partial<ServiceClient> = {}): ServiceClient {
   };
 }
 
-describe('useWorkbenchService', () => {
+describe('useWaterLilyService', () => {
   beforeEach(() => {
-    useWorkbenchStore.getState().reset();
+    useWaterLilyStore.getState().reset();
   });
 
   it('hydrates a saved workspace and selects the first available provider', async () => {
@@ -63,7 +63,7 @@ describe('useWorkbenchService', () => {
       load: vi.fn<ServiceClient['load']>(() => Promise.resolve(saved)),
     });
     const { result } = renderHook(() =>
-      useWorkbenchService({
+      useWaterLilyService({
         client,
         enabled: true,
         saveDelayMilliseconds: 100_000,
@@ -72,7 +72,7 @@ describe('useWorkbenchService', () => {
 
     await waitFor(() => expect(result.current.status).toBe('online'));
     expect(result.current.selectedProviderId).toBe('deepseek');
-    expect(useWorkbenchStore.getState()).toMatchObject({
+    expect(useWaterLilyStore.getState()).toMatchObject({
       contextSelections: { 'node-note': { mode: 'excluded' } },
       positions: { 'node-answer': { x: 31, y: 47 } },
     });
@@ -84,7 +84,7 @@ describe('useWorkbenchService', () => {
       load: vi.fn<ServiceClient['load']>(() => Promise.resolve(null)),
     });
     const { result } = renderHook(() =>
-      useWorkbenchService({ client, enabled: true, saveDelayMilliseconds: 5 }),
+      useWaterLilyService({ client, enabled: true, saveDelayMilliseconds: 5 }),
     );
 
     await waitFor(() => expect(result.current.status).toBe('online'));
@@ -98,13 +98,13 @@ describe('useWorkbenchService', () => {
   it('autosaves graph view changes after initialization', async () => {
     const client = createClient();
     const { result } = renderHook(() =>
-      useWorkbenchService({ client, enabled: true, saveDelayMilliseconds: 1 }),
+      useWaterLilyService({ client, enabled: true, saveDelayMilliseconds: 1 }),
     );
     await waitFor(() => expect(result.current.status).toBe('online'));
     vi.mocked(client.save).mockClear();
 
     act(() => {
-      useWorkbenchStore
+      useWaterLilyStore
         .getState()
         .setPosition('node-answer', { x: 101, y: 202 });
     });
@@ -124,12 +124,12 @@ describe('useWorkbenchService', () => {
       .mockRejectedValue('storage unavailable');
     const client = createClient({ save });
     const { result } = renderHook(() =>
-      useWorkbenchService({ client, enabled: true, saveDelayMilliseconds: 1 }),
+      useWaterLilyService({ client, enabled: true, saveDelayMilliseconds: 1 }),
     );
     await waitFor(() => expect(result.current.status).toBe('online'));
 
     act(() => {
-      useWorkbenchStore.getState().setPosition('node-answer', { x: 12, y: 13 });
+      useWaterLilyStore.getState().setPosition('node-answer', { x: 12, y: 13 });
     });
 
     await waitFor(() =>
@@ -137,7 +137,7 @@ describe('useWorkbenchService', () => {
         'The local service request failed.',
       ),
     );
-    expect(useWorkbenchStore.getState().positions['node-answer']).toEqual({
+    expect(useWaterLilyStore.getState().positions['node-answer']).toEqual({
       x: 12,
       y: 13,
     });
@@ -182,7 +182,7 @@ describe('useWorkbenchService', () => {
     });
     const client = createClient({ generate });
     const { result } = renderHook(() =>
-      useWorkbenchService({
+      useWaterLilyService({
         client,
         enabled: true,
         saveDelayMilliseconds: 100_000,
@@ -201,7 +201,7 @@ describe('useWorkbenchService', () => {
       status: 'idle',
       text: 'ATP is formed.',
     });
-    expect(useWorkbenchStore.getState().positions['node-synthesis']).toEqual({
+    expect(useWaterLilyStore.getState().positions['node-synthesis']).toEqual({
       x: 900,
       y: 400,
     });
@@ -217,7 +217,7 @@ describe('useWorkbenchService', () => {
       ),
     });
     const unavailable = renderHook(() =>
-      useWorkbenchService({
+      useWaterLilyService({
         client: unavailableClient,
         enabled: true,
         saveDelayMilliseconds: 100_000,
@@ -240,7 +240,7 @@ describe('useWorkbenchService', () => {
       ),
     });
     const rejected = renderHook(() =>
-      useWorkbenchService({
+      useWaterLilyService({
         client: rejectedClient,
         enabled: true,
         saveDelayMilliseconds: 100_000,
@@ -271,7 +271,7 @@ describe('useWorkbenchService', () => {
     );
     const client = createClient({ generate });
     const active = renderHook(() =>
-      useWorkbenchService({
+      useWaterLilyService({
         client,
         enabled: true,
         saveDelayMilliseconds: 100_000,
@@ -300,7 +300,7 @@ describe('useWorkbenchService', () => {
       ),
     });
     const offline = renderHook(() =>
-      useWorkbenchService({ client: failure, enabled: true }),
+      useWaterLilyService({ client: failure, enabled: true }),
     );
     await waitFor(() => expect(offline.result.current.status).toBe('offline'));
     expect(offline.result.current.serviceError).toBe('Service unavailable');
@@ -308,7 +308,7 @@ describe('useWorkbenchService', () => {
 
     const disabledClient = createClient();
     const disabled = renderHook(() =>
-      useWorkbenchService({ client: disabledClient, enabled: false }),
+      useWaterLilyService({ client: disabledClient, enabled: false }),
     );
     expect(disabled.result.current.status).toBe('disabled');
     expect(disabledClient.health).not.toHaveBeenCalled();

@@ -4,9 +4,9 @@ import type {
   GraphNode,
   GraphSnapshot,
   MessageRole,
-} from '@llm-graph/domain';
-import type { GraphViewGroup, GraphViewState } from '@llm-graph/interchange';
-import type { ContextSelection } from '@llm-graph/context-engine';
+} from '@waterlily/domain';
+import type { GraphViewGroup, GraphViewState } from '@waterlily/interchange';
+import type { ContextSelection } from '@waterlily/context-engine';
 import { MarkerType, type Edge, type Node } from '@xyflow/react';
 
 export interface CanvasPosition {
@@ -34,7 +34,7 @@ export interface GroupNodeData extends Record<string, unknown> {
 }
 
 export type GroupFlowNode = Node<GroupNodeData, 'canvasGroup'>;
-export type WorkbenchFlowNode = ConversationFlowNode | GroupFlowNode;
+export type WaterLilyFlowNode = ConversationFlowNode | GroupFlowNode;
 
 export interface FlowProjectionOptions {
   readonly contextSelections?: Readonly<Record<string, ContextSelection>>;
@@ -168,7 +168,7 @@ export function nodeTitle(graph: GraphSnapshot, nodeId: string): string {
 export function toFlowNodes(
   graph: GraphSnapshot,
   options: FlowProjectionOptions = {},
-): WorkbenchFlowNode[] {
+): WaterLilyFlowNode[] {
   const positions = options.positions ?? {};
   const selectedNodeIds = new Set(options.selectedNodeIds ?? []);
   const groups = options.groups ?? [];

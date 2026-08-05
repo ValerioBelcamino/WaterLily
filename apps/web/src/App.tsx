@@ -4,7 +4,7 @@ import './styles.css';
 import {
   parseGraphDocument,
   type ImportEntityKind,
-} from '@llm-graph/interchange';
+} from '@waterlily/interchange';
 import {
   Download,
   Focus,
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-import { useWorkbenchService } from './api/useWorkbenchService';
+import { useWaterLilyService } from './api/useWaterLilyService';
 import { FocusView } from './graph/FocusView';
 import { GraphCanvas } from './graph/GraphCanvas';
 import { nodeTitle, revisionText } from './graph/graphViewModel';
@@ -28,7 +28,7 @@ import {
   type OperationSubmission,
 } from './OperationDialog';
 import { Sidebar } from './Sidebar';
-import { useWorkbenchStore, type ViewMode } from './state/workbenchStore';
+import { useWaterLilyStore, type ViewMode } from './state/waterlilyStore';
 
 function ModeButton({
   active,
@@ -66,26 +66,26 @@ function importId(kind: ImportEntityKind): string {
 export function App() {
   const [dialog, setDialog] = useState<OperationKind | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const service = useWorkbenchService();
-  const addGroup = useWorkbenchStore((state) => state.addGroup);
-  const branch = useWorkbenchStore((state) => state.branch);
-  const contextSelections = useWorkbenchStore(
+  const service = useWaterLilyService();
+  const addGroup = useWaterLilyStore((state) => state.addGroup);
+  const branch = useWaterLilyStore((state) => state.branch);
+  const contextSelections = useWaterLilyStore(
     (state) => state.contextSelections,
   );
-  const graph = useWorkbenchStore((state) => state.graph);
-  const groups = useWorkbenchStore((state) => state.groups);
-  const merge = useWorkbenchStore((state) => state.merge);
-  const mergeDocument = useWorkbenchStore((state) => state.mergeDocument);
-  const positions = useWorkbenchStore((state) => state.positions);
-  const selectedNodeId = useWorkbenchStore((state) => state.selectedNodeId);
-  const selectedNodeIds = useWorkbenchStore((state) => state.selectedNodeIds);
-  const selectNode = useWorkbenchStore((state) => state.selectNode);
-  const setContextSelection = useWorkbenchStore(
+  const graph = useWaterLilyStore((state) => state.graph);
+  const groups = useWaterLilyStore((state) => state.groups);
+  const merge = useWaterLilyStore((state) => state.merge);
+  const mergeDocument = useWaterLilyStore((state) => state.mergeDocument);
+  const positions = useWaterLilyStore((state) => state.positions);
+  const selectedNodeId = useWaterLilyStore((state) => state.selectedNodeId);
+  const selectedNodeIds = useWaterLilyStore((state) => state.selectedNodeIds);
+  const selectNode = useWaterLilyStore((state) => state.selectNode);
+  const setContextSelection = useWaterLilyStore(
     (state) => state.setContextSelection,
   );
-  const setViewMode = useWorkbenchStore((state) => state.setViewMode);
-  const split = useWorkbenchStore((state) => state.split);
-  const viewMode = useWorkbenchStore((state) => state.viewMode);
+  const setViewMode = useWaterLilyStore((state) => state.setViewMode);
+  const split = useWaterLilyStore((state) => state.split);
+  const viewMode = useWaterLilyStore((state) => state.viewMode);
   const nodeCount = Object.keys(graph.nodes).length;
   const edgeCount = Object.keys(graph.edges).length;
   const selectedTitle =
@@ -213,7 +213,7 @@ export function App() {
   };
 
   return (
-    <div className="workbench-shell">
+    <div className="waterlily-shell">
       <Sidebar edgeCount={edgeCount} nodeCount={nodeCount} />
       <main className="workspace">
         <header className="workspace__toolbar">

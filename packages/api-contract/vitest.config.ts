@@ -5,16 +5,16 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@llm-graph/context-engine': fileURLToPath(
+      '@waterlily/context-engine': fileURLToPath(
         new URL('../context-engine/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/domain': fileURLToPath(
+      '@waterlily/domain': fileURLToPath(
         new URL('../domain/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/interchange': fileURLToPath(
+      '@waterlily/interchange': fileURLToPath(
         new URL('../interchange/src/index.ts', import.meta.url),
       ),
-      '@llm-graph/providers': fileURLToPath(
+      '@waterlily/providers': fileURLToPath(
         new URL('../providers/src/index.ts', import.meta.url),
       ),
     },

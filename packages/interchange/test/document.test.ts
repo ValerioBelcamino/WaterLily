@@ -1,4 +1,4 @@
-import { createNode, type GraphSnapshot } from '@llm-graph/domain';
+import { createNode, type GraphSnapshot } from '@waterlily/domain';
 import { describe, expect, it } from 'vitest';
 
 import {

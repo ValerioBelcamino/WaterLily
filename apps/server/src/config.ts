@@ -1,7 +1,7 @@
 import {
   createDeepSeekProvider,
   createOpenAICompatibleProvider,
-} from '@llm-graph/providers';
+} from '@waterlily/providers';
 
 import type { RegisteredProvider } from './types.js';
 

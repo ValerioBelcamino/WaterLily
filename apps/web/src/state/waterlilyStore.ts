@@ -1,12 +1,12 @@
-import type { WorkspaceSnapshot } from '@llm-graph/api-contract';
-import type { ContextSelection } from '@llm-graph/context-engine';
-import type { GraphSnapshot } from '@llm-graph/domain';
+import type { WorkspaceSnapshot } from '@waterlily/api-contract';
+import type { ContextSelection } from '@waterlily/context-engine';
+import type { GraphSnapshot } from '@waterlily/domain';
 import {
   mergeGraphDocument,
   type GraphDocumentV1,
   type GraphViewGroup,
   type IdRemapper,
-} from '@llm-graph/interchange';
+} from '@waterlily/interchange';
 import {
   branchFromNode,
   mergeBranches,
@@ -14,7 +14,7 @@ import {
   type BranchInput,
   type MergeInput,
   type SplitInput,
-} from '@llm-graph/workflows';
+} from '@waterlily/workflows';
 import { create } from 'zustand';
 
 import type { CanvasPosition, CanvasPositions } from '../graph/graphViewModel';
@@ -22,7 +22,7 @@ import { sampleGraph } from '../sampleGraph';
 
 export type ViewMode = 'canvas' | 'focus';
 
-interface WorkbenchState {
+interface WaterLilyState {
   readonly contextSelections: Readonly<Record<string, ContextSelection>>;
   readonly graph: GraphSnapshot;
   readonly groups: readonly GraphViewGroup[];
@@ -63,7 +63,7 @@ function initialState() {
   };
 }
 
-export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
+export const useWaterLilyStore = create<WaterLilyState>()((set) => ({
   ...initialState(),
   addGroup: (group) => {
     set((state) => {

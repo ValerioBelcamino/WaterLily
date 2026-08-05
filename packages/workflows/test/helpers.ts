@@ -3,12 +3,12 @@ import {
   createGraph,
   createNode,
   type GraphSnapshot,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 import type {
   ChatProvider,
   ChatStreamEvent,
   StreamChatOptions,
-} from '@llm-graph/providers';
+} from '@waterlily/providers';
 
 export const time = (offset: number): string =>
   new Date(

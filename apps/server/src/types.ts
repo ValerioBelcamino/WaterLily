@@ -1,8 +1,8 @@
 import type {
   ProviderDescriptor,
   WorkspaceSnapshot,
-} from '@llm-graph/api-contract';
-import type { ChatProvider } from '@llm-graph/providers';
+} from '@waterlily/api-contract';
+import type { ChatProvider } from '@waterlily/providers';
 
 export interface WorkspaceStore {
   get(graphId: string): WorkspaceSnapshot | null;
@@ -15,7 +15,7 @@ export interface RegisteredProvider {
   readonly provider?: ChatProvider;
 }
 
-export interface WorkbenchHandlerOptions {
+export interface WaterLilyHandlerOptions {
   readonly createId?: (kind: 'block' | 'edge' | 'node' | 'revision') => string;
   readonly maxBodyBytes?: number;
   readonly now?: () => string;

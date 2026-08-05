@@ -1,5 +1,5 @@
 {
-  "name": "@llm-graph/workflows",
+  "name": "@waterlily/workflows",
   "version": "0.0.0",
   "private": true,
   "description": "Atomic graph editing and generation orchestration workflows",
@@ -22,8 +22,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@llm-graph/context-engine": "workspace:*",
-    "@llm-graph/domain": "workspace:*",
-    "@llm-graph/providers": "workspace:*"
+    "@waterlily/context-engine": "workspace:*",
+    "@waterlily/domain": "workspace:*",
+    "@waterlily/providers": "workspace:*"
   }
 }

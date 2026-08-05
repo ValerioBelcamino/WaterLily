@@ -8,7 +8,7 @@ import {
   type GraphSnapshot,
   type MessageRole,
   type NodeKind,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import { ContextCompilerError, type ContextErrorCode } from '../src/index.js';
 

@@ -1,5 +1,5 @@
 {
-  "name": "@llm-graph/providers",
+  "name": "@waterlily/providers",
   "version": "0.0.0",
   "private": true,
   "description": "Provider-neutral LLM streaming and OpenAI-compatible adapters",

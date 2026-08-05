@@ -1,5 +1,5 @@
 {
-  "name": "@llm-graph/database",
+  "name": "@waterlily/database",
   "version": "0.0.0",
   "private": true,
   "description": "SQLite persistence, migrations, and repositories",
@@ -23,7 +23,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@llm-graph/domain": "workspace:*",
+    "@waterlily/domain": "workspace:*",
     "better-sqlite3": "catalog:",
     "drizzle-orm": "catalog:"
   },

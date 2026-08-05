@@ -4,7 +4,7 @@ import type {
   JsonValue,
   MessageRole,
   NodeKind,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 export interface ContextHead {
   readonly label: string;

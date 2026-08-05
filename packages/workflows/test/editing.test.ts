@@ -1,4 +1,4 @@
-import { reviseNode, validateGraph } from '@llm-graph/domain';
+import { reviseNode, validateGraph } from '@waterlily/domain';
 import { describe, expect, it } from 'vitest';
 
 import {

@@ -1,8 +1,8 @@
 {
-  "name": "@llm-graph/web",
+  "name": "@waterlily/web",
   "version": "0.0.0",
   "private": true,
-  "description": "Graph-native conversation workbench web client",
+  "description": "WaterLily graph conversation web client",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -15,11 +15,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@llm-graph/api-contract": "workspace:*",
-    "@llm-graph/context-engine": "workspace:*",
-    "@llm-graph/domain": "workspace:*",
-    "@llm-graph/interchange": "workspace:*",
-    "@llm-graph/workflows": "workspace:*",
+    "@waterlily/api-contract": "workspace:*",
+    "@waterlily/context-engine": "workspace:*",
+    "@waterlily/domain": "workspace:*",
+    "@waterlily/interchange": "workspace:*",
+    "@waterlily/workflows": "workspace:*",
     "@xyflow/react": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",

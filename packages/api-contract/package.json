@@ -1,8 +1,8 @@
 {
-  "name": "@llm-graph/api-contract",
+  "name": "@waterlily/api-contract",
   "version": "0.0.0",
   "private": true,
-  "description": "Runtime-validated local service contract for LLM Graph Workbench",
+  "description": "Runtime-validated local service contract for WaterLily",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -22,9 +22,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@llm-graph/context-engine": "workspace:*",
-    "@llm-graph/domain": "workspace:*",
-    "@llm-graph/interchange": "workspace:*",
-    "@llm-graph/providers": "workspace:*"
+    "@waterlily/context-engine": "workspace:*",
+    "@waterlily/domain": "workspace:*",
+    "@waterlily/interchange": "workspace:*",
+    "@waterlily/providers": "workspace:*"
   }
 }

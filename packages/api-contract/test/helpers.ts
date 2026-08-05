@@ -3,7 +3,7 @@ import {
   createGraph,
   createNode,
   type GraphSnapshot,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 export const NOW = '2026-08-05T12:00:00.000Z';
 

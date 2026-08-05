@@ -2,12 +2,12 @@ import type {
   GenerationStreamItem,
   ProviderDescriptor,
   WorkspaceSnapshot,
-} from '@llm-graph/api-contract';
+} from '@waterlily/api-contract';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { nodeTitle } from '../graph/graphViewModel';
-import { useWorkbenchStore } from '../state/workbenchStore';
-import { WorkbenchApiError, WorkbenchClient } from './workbenchClient';
+import { useWaterLilyStore } from '../state/waterlilyStore';
+import { WaterLilyApiError, WaterLilyClient } from './waterlilyClient';
 
 export type ServiceStatus = 'connecting' | 'disabled' | 'offline' | 'online';
 export type GenerationStatus = 'idle' | 'saving' | 'streaming';
@@ -21,19 +21,19 @@ export interface GenerationViewState {
 }
 
 interface ServiceClient {
-  generate: WorkbenchClient['generate'];
-  health: WorkbenchClient['health'];
-  load: WorkbenchClient['load'];
-  save: WorkbenchClient['save'];
+  generate: WaterLilyClient['generate'];
+  health: WaterLilyClient['health'];
+  load: WaterLilyClient['load'];
+  save: WaterLilyClient['save'];
 }
 
-export interface UseWorkbenchServiceOptions {
+export interface UseWaterLilyServiceOptions {
   readonly client?: ServiceClient;
   readonly enabled?: boolean;
   readonly saveDelayMilliseconds?: number;
 }
 
-export interface WorkbenchServiceState {
+export interface WaterLilyServiceState {
   readonly cancel: () => void;
   readonly generate: (headNodeId: string) => Promise<void>;
   readonly generation: GenerationViewState;
@@ -53,27 +53,27 @@ const IDLE_GENERATION: GenerationViewState = {
 };
 
 function errorMessage(error: unknown): string {
-  if (error instanceof WorkbenchApiError || error instanceof Error)
+  if (error instanceof WaterLilyApiError || error instanceof Error)
     return error.message;
   return 'The local service request failed.';
 }
 
-export function useWorkbenchService(
-  options: UseWorkbenchServiceOptions = {},
-): WorkbenchServiceState {
+export function useWaterLilyService(
+  options: UseWaterLilyServiceOptions = {},
+): WaterLilyServiceState {
   const enabled = options.enabled ?? import.meta.env.MODE !== 'test';
   const saveDelayMilliseconds = options.saveDelayMilliseconds ?? 300;
   const client = useMemo<ServiceClient>(
-    () => options.client ?? new WorkbenchClient(),
+    () => options.client ?? new WaterLilyClient(),
     [options.client],
   );
-  const contextSelections = useWorkbenchStore(
+  const contextSelections = useWaterLilyStore(
     (state) => state.contextSelections,
   );
-  const graph = useWorkbenchStore((state) => state.graph);
-  const groups = useWorkbenchStore((state) => state.groups);
-  const positions = useWorkbenchStore((state) => state.positions);
-  const replaceWorkspace = useWorkbenchStore((state) => state.replaceWorkspace);
+  const graph = useWaterLilyStore((state) => state.graph);
+  const groups = useWaterLilyStore((state) => state.groups);
+  const positions = useWaterLilyStore((state) => state.positions);
+  const replaceWorkspace = useWaterLilyStore((state) => state.replaceWorkspace);
   const [generation, setGeneration] =
     useState<GenerationViewState>(IDLE_GENERATION);
   const [providers, setProviders] = useState<readonly ProviderDescriptor[]>([]);

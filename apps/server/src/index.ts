@@ -1,8 +1,8 @@
 export { configuredProviders } from './config.js';
 export { createNodeServer } from './nodeServer.js';
-export { createWorkbenchHandler } from './server.js';
+export { createWaterLilyHandler } from './server.js';
 export type {
   RegisteredProvider,
-  WorkbenchHandlerOptions,
+  WaterLilyHandlerOptions,
   WorkspaceStore,
 } from './types.js';

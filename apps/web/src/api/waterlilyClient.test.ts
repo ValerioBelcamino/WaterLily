@@ -3,11 +3,11 @@ import {
   type GenerationApiRequest,
   type GenerationStreamItem,
   type WorkspaceSnapshot,
-} from '@llm-graph/api-contract';
+} from '@waterlily/api-contract';
 import { describe, expect, it, vi } from 'vitest';
 
 import { sampleGraph } from '../sampleGraph';
-import { WorkbenchApiError, WorkbenchClient } from './workbenchClient';
+import { WaterLilyApiError, WaterLilyClient } from './waterlilyClient';
 
 const workspace: WorkspaceSnapshot = {
   graph: sampleGraph,
@@ -52,7 +52,7 @@ function chunkedResponse(text: string, bytesPerChunk = 1): Response {
   );
 }
 
-describe('WorkbenchClient', () => {
+describe('WaterLilyClient', () => {
   it('invokes browser fetch with the global receiver', async () => {
     const receiver: { value?: unknown } = {};
     const fetchClient: typeof globalThis.fetch = function (this: unknown) {
@@ -60,7 +60,7 @@ describe('WorkbenchClient', () => {
       return Promise.resolve(Response.json({ providers: [] }));
     };
 
-    await expect(new WorkbenchClient(fetchClient).health()).resolves.toEqual(
+    await expect(new WaterLilyClient(fetchClient).health()).resolves.toEqual(
       [],
     );
     expect(receiver.value).toBe(globalThis);
@@ -88,7 +88,7 @@ describe('WorkbenchClient', () => {
           })
         : Response.json(workspace);
     });
-    const client = new WorkbenchClient(fetchClient);
+    const client = new WaterLilyClient(fetchClient);
     expect(await client.health()).toEqual([
       {
         available: true,
@@ -116,7 +116,7 @@ describe('WorkbenchClient', () => {
             { status: 404 },
           );
     });
-    const client = new WorkbenchClient(fetchClient);
+    const client = new WaterLilyClient(fetchClient);
     expect(await client.load('missing')).toBeNull();
     expect(await client.save(workspace, null)).toEqual(workspace);
     const saveInit = (fetchClient as ReturnType<typeof vi.fn>).mock
@@ -151,7 +151,7 @@ describe('WorkbenchClient', () => {
       );
     });
     const observed: GenerationStreamItem[] = [];
-    const result = await new WorkbenchClient(fetchClient).generate(
+    const result = await new WaterLilyClient(fetchClient).generate(
       generation,
       (item) => observed.push(item),
       new AbortController().signal,
@@ -185,7 +185,7 @@ describe('WorkbenchClient', () => {
         }),
       ),
     ];
-    const client = new WorkbenchClient(
+    const client = new WaterLilyClient(
       fetchMock(async () => {
         await Promise.resolve();
         return responses.shift() as Response;
@@ -228,15 +228,15 @@ describe('WorkbenchClient', () => {
       Response.json({ nope: true }, { status: 500 }),
       Response.json({ graph: {}, state: {} }),
     ];
-    const client = new WorkbenchClient(
+    const client = new WaterLilyClient(
       fetchMock(async () => {
         await Promise.resolve();
         return responses.shift() as Response;
       }),
     );
-    await expect(client.health()).rejects.toBeInstanceOf(WorkbenchApiError);
-    await expect(client.health()).rejects.toBeInstanceOf(WorkbenchApiError);
-    await expect(client.health()).rejects.toBeInstanceOf(WorkbenchApiError);
+    await expect(client.health()).rejects.toBeInstanceOf(WaterLilyApiError);
+    await expect(client.health()).rejects.toBeInstanceOf(WaterLilyApiError);
+    await expect(client.health()).rejects.toBeInstanceOf(WaterLilyApiError);
     await expect(client.load('x')).rejects.toMatchObject({
       code: 'INVALID_RESPONSE',
     });

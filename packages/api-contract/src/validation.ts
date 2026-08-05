@@ -1,14 +1,14 @@
 import type {
   ContextOverride,
   ContextSelection,
-} from '@llm-graph/context-engine';
+} from '@waterlily/context-engine';
 import {
   validateGraph,
   type GraphSnapshot,
   type NodeRevision,
-} from '@llm-graph/domain';
-import { validateGraphDocument } from '@llm-graph/interchange';
-import type { ChatStreamEvent } from '@llm-graph/providers';
+} from '@waterlily/domain';
+import { validateGraphDocument } from '@waterlily/interchange';
+import type { ChatStreamEvent } from '@waterlily/providers';
 
 import { ApiContractError, failContract } from './errors.js';
 import type {
@@ -113,8 +113,8 @@ export function validateWorkspaceState(
   }
   const document = validateGraphDocument({
     exportedAt: graph.updatedAt,
-    exporter: { name: 'LLM Graph Workbench service', version: '0.0.0' },
-    format: 'llm-graph-workbench/graph',
+    exporter: { name: 'WaterLily service', version: '0.0.0' },
+    format: 'waterlily/graph',
     graph,
     schemaVersion: 1,
     view: state.view,

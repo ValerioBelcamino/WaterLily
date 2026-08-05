@@ -1,5 +1,5 @@
-import type { GraphSnapshot } from '@llm-graph/domain';
-import type { ContextSelection } from '@llm-graph/context-engine';
+import type { GraphSnapshot } from '@waterlily/domain';
+import type { ContextSelection } from '@waterlily/context-engine';
 import {
   GitBranch,
   GitMerge,
@@ -9,7 +9,7 @@ import {
   Tag,
 } from 'lucide-react';
 
-import type { GenerationViewState } from './api/useWorkbenchService';
+import type { GenerationViewState } from './api/useWaterLilyService';
 import { nodeTitle, revisionText } from './graph/graphViewModel';
 
 export interface InspectorProps {

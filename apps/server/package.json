@@ -1,8 +1,8 @@
 {
-  "name": "@llm-graph/server",
+  "name": "@waterlily/server",
   "version": "0.0.0",
   "private": true,
-  "description": "Loopback-only persistence and provider service for LLM Graph Workbench",
+  "description": "Loopback-only persistence and provider service for WaterLily",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -15,10 +15,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@llm-graph/api-contract": "workspace:*",
-    "@llm-graph/database": "workspace:*",
-    "@llm-graph/domain": "workspace:*",
-    "@llm-graph/providers": "workspace:*",
-    "@llm-graph/workflows": "workspace:*"
+    "@waterlily/api-contract": "workspace:*",
+    "@waterlily/database": "workspace:*",
+    "@waterlily/domain": "workspace:*",
+    "@waterlily/providers": "workspace:*",
+    "@waterlily/workflows": "workspace:*"
   }
 }

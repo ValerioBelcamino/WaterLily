@@ -2,10 +2,10 @@ import type {
   ContextHead,
   ContextOverride,
   ContextSelection,
-} from '@llm-graph/context-engine';
-import type { GraphSnapshot } from '@llm-graph/domain';
-import type { GraphViewState } from '@llm-graph/interchange';
-import type { ChatRequest, ChatStreamEvent } from '@llm-graph/providers';
+} from '@waterlily/context-engine';
+import type { GraphSnapshot } from '@waterlily/domain';
+import type { GraphViewState } from '@waterlily/interchange';
+import type { ChatRequest, ChatStreamEvent } from '@waterlily/providers';
 
 export interface WorkspaceStateV1 {
   readonly contextSelections: Readonly<Record<string, ContextSelection>>;

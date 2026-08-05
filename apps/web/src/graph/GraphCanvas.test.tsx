@@ -3,20 +3,20 @@ import type * as ReactFlowModule from '@xyflow/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { WorkbenchFlowNode } from './graphViewModel';
+import type { WaterLilyFlowNode } from './graphViewModel';
 
 interface FlowPropsCapture {
-  readonly nodes: WorkbenchFlowNode[];
+  readonly nodes: WaterLilyFlowNode[];
   readonly onNodeClick: (
     event: { readonly shiftKey?: boolean },
-    node: WorkbenchFlowNode,
+    node: WaterLilyFlowNode,
   ) => void;
-  readonly onNodeDragStop: (event: unknown, node: WorkbenchFlowNode) => void;
+  readonly onNodeDragStop: (event: unknown, node: WaterLilyFlowNode) => void;
   readonly onPaneClick: () => void;
 }
 
 interface MiniMapPropsCapture {
-  readonly nodeColor: (node: WorkbenchFlowNode) => string;
+  readonly nodeColor: (node: WaterLilyFlowNode) => string;
 }
 
 const capture = vi.hoisted(() => ({
@@ -44,12 +44,12 @@ vi.mock('@xyflow/react', async (importOriginal) => {
 });
 
 import { sampleGraph } from '../sampleGraph';
-import { useWorkbenchStore } from '../state/workbenchStore';
+import { useWaterLilyStore } from '../state/waterlilyStore';
 import { GraphCanvas } from './GraphCanvas';
 
 describe('GraphCanvas', () => {
   beforeEach(() => {
-    useWorkbenchStore.getState().reset();
+    useWaterLilyStore.getState().reset();
     capture.flow = undefined;
     capture.miniMap = undefined;
   });
@@ -86,12 +86,12 @@ describe('GraphCanvas', () => {
     act(() => {
       flow.onNodeClick({ shiftKey: false }, answer);
     });
-    expect(useWorkbenchStore.getState().selectedNodeId).toBe('node-answer');
+    expect(useWaterLilyStore.getState().selectedNodeId).toBe('node-answer');
 
     act(() => {
       flow.onNodeDragStop({}, { ...answer, position: { x: 88, y: 144 } });
     });
-    expect(useWorkbenchStore.getState().positions['node-answer']).toEqual({
+    expect(useWaterLilyStore.getState().positions['node-answer']).toEqual({
       x: 88,
       y: 144,
     });
@@ -99,7 +99,7 @@ describe('GraphCanvas', () => {
     act(() => {
       flow.onPaneClick();
     });
-    expect(useWorkbenchStore.getState().selectedNodeId).toBeNull();
+    expect(useWaterLilyStore.getState().selectedNodeId).toBeNull();
 
     expect(miniMap.nodeColor(user)).toBe('#58779a');
     expect(miniMap.nodeColor(answer)).toBe('#547a68');
@@ -109,7 +109,7 @@ describe('GraphCanvas', () => {
   });
 
   it('supports additive selection and translates grouped drag positions', () => {
-    useWorkbenchStore.getState().addGroup({
+    useWaterLilyStore.getState().addGroup({
       collapsed: false,
       color: '#7669a8',
       id: 'group-review',
@@ -140,7 +140,7 @@ describe('GraphCanvas', () => {
       flow.onNodeClick({ shiftKey: false }, answer);
       flow.onNodeClick({ shiftKey: true }, sideAnswer);
     });
-    expect(useWorkbenchStore.getState().selectedNodeIds).toEqual([
+    expect(useWaterLilyStore.getState().selectedNodeIds).toEqual([
       'node-answer',
       'node-side-answer',
     ]);
@@ -154,11 +154,11 @@ describe('GraphCanvas', () => {
         },
       );
     });
-    expect(useWorkbenchStore.getState().positions['node-answer']).toEqual({
+    expect(useWaterLilyStore.getState().positions['node-answer']).toEqual({
       x: 680,
       y: 15,
     });
-    expect(useWorkbenchStore.getState().positions['node-side-answer']).toEqual({
+    expect(useWaterLilyStore.getState().positions['node-side-answer']).toEqual({
       x: 1340,
       y: 15,
     });

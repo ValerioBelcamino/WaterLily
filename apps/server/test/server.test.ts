@@ -1,12 +1,12 @@
 import {
   parseGenerationStreamLine,
   type GenerationStreamItem,
-} from '@llm-graph/api-contract';
-import { DatabaseError } from '@llm-graph/database';
-import { ProviderError, type ChatProvider } from '@llm-graph/providers';
+} from '@waterlily/api-contract';
+import { DatabaseError } from '@waterlily/database';
+import { ProviderError, type ChatProvider } from '@waterlily/providers';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createWorkbenchHandler } from '../src/server.js';
+import { createWaterLilyHandler } from '../src/server.js';
 import {
   completeEvents,
   fixtureProvider,
@@ -32,7 +32,7 @@ function handler(
 ) {
   let id = 0;
   return {
-    handle: createWorkbenchHandler({
+    handle: createWaterLilyHandler({
       createId: (kind) => `${kind}-generated-${String((id += 1))}`,
       now: () => NOW,
       providers: [{ ...providerRegistration, provider }],
@@ -64,7 +64,7 @@ async function streamItems(
     .map(parseGenerationStreamLine);
 }
 
-describe('workbench service handler', () => {
+describe('WaterLily service handler', () => {
   it('reports health, provider availability, and security headers', async () => {
     const response = await handler().handle(
       new Request('http://127.0.0.1/api/health'),
@@ -72,7 +72,7 @@ describe('workbench service handler', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       providers: [{ available: true, id: 'fixture' }],
-      service: 'llm-graph-workbench',
+      service: 'waterlily',
     });
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
@@ -199,7 +199,7 @@ describe('workbench service handler', () => {
         )
       ).status,
     ).toBe(400);
-    const tiny = createWorkbenchHandler({
+    const tiny = createWaterLilyHandler({
       maxBodyBytes: 4,
       providers: [providerRegistration],
       workspaces: new MemoryStore(),
@@ -243,7 +243,7 @@ describe('workbench service handler', () => {
   });
 
   it('maps unexpected and typed repository read failures without details', async () => {
-    const notFound = createWorkbenchHandler({
+    const notFound = createWaterLilyHandler({
       providers: [providerRegistration],
       workspaces: {
         get() {
@@ -263,7 +263,7 @@ describe('workbench service handler', () => {
     expect(typed.status).toBe(404);
     expect(await typed.text()).not.toContain('private database detail');
 
-    const broken = createWorkbenchHandler({
+    const broken = createWaterLilyHandler({
       providers: [],
       workspaces: {
         get() {
@@ -361,7 +361,7 @@ describe('workbench service handler', () => {
   it('uses server-generated identities and timestamps by default', async () => {
     const store = new MemoryStore();
     store.insert(workspaceFixture());
-    const handle = createWorkbenchHandler({
+    const handle = createWaterLilyHandler({
       providers: [providerRegistration],
       workspaces: store,
     });
@@ -398,7 +398,7 @@ describe('workbench service handler', () => {
     async ({ expectedCode, providerId, registration }) => {
       const store = new MemoryStore();
       store.insert(workspaceFixture());
-      const handle = createWorkbenchHandler({
+      const handle = createWaterLilyHandler({
         providers: [registration],
         workspaces: store,
       });

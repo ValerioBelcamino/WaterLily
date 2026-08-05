@@ -5,7 +5,7 @@ import {
   createNode,
   type GraphNode,
   type GraphSnapshot,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 import { describe, expect, it } from 'vitest';
 
 import { sampleGraph } from '../sampleGraph';

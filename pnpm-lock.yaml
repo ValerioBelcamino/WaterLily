@@ -139,37 +139,37 @@ importers:
 
   apps/server:
     dependencies:
-      '@llm-graph/api-contract':
+      '@waterlily/api-contract':
         specifier: workspace:*
         version: link:../../packages/api-contract
-      '@llm-graph/database':
+      '@waterlily/database':
         specifier: workspace:*
         version: link:../../packages/database
-      '@llm-graph/domain':
+      '@waterlily/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@llm-graph/providers':
+      '@waterlily/providers':
         specifier: workspace:*
         version: link:../../packages/providers
-      '@llm-graph/workflows':
+      '@waterlily/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
 
   apps/web:
     dependencies:
-      '@llm-graph/api-contract':
+      '@waterlily/api-contract':
         specifier: workspace:*
         version: link:../../packages/api-contract
-      '@llm-graph/context-engine':
+      '@waterlily/context-engine':
         specifier: workspace:*
         version: link:../../packages/context-engine
-      '@llm-graph/domain':
+      '@waterlily/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@llm-graph/interchange':
+      '@waterlily/interchange':
         specifier: workspace:*
         version: link:../../packages/interchange
-      '@llm-graph/workflows':
+      '@waterlily/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
       '@xyflow/react':
@@ -221,28 +221,28 @@ importers:
 
   packages/api-contract:
     dependencies:
-      '@llm-graph/context-engine':
+      '@waterlily/context-engine':
         specifier: workspace:*
         version: link:../context-engine
-      '@llm-graph/domain':
+      '@waterlily/domain':
         specifier: workspace:*
         version: link:../domain
-      '@llm-graph/interchange':
+      '@waterlily/interchange':
         specifier: workspace:*
         version: link:../interchange
-      '@llm-graph/providers':
+      '@waterlily/providers':
         specifier: workspace:*
         version: link:../providers
 
   packages/context-engine:
     dependencies:
-      '@llm-graph/domain':
+      '@waterlily/domain':
         specifier: workspace:*
         version: link:../domain
 
   packages/database:
     dependencies:
-      '@llm-graph/domain':
+      '@waterlily/domain':
         specifier: workspace:*
         version: link:../domain
       better-sqlite3:
@@ -260,7 +260,7 @@ importers:
 
   packages/interchange:
     dependencies:
-      '@llm-graph/domain':
+      '@waterlily/domain':
         specifier: workspace:*
         version: link:../domain
 
@@ -268,13 +268,13 @@ importers:
 
   packages/workflows:
     dependencies:
-      '@llm-graph/context-engine':
+      '@waterlily/context-engine':
         specifier: workspace:*
         version: link:../context-engine
-      '@llm-graph/domain':
+      '@waterlily/domain':
         specifier: workspace:*
         version: link:../domain
-      '@llm-graph/providers':
+      '@waterlily/providers':
         specifier: workspace:*
         version: link:../providers
 

@@ -4,17 +4,17 @@ import { dirname, resolve } from 'node:path';
 import {
   validateWorkspaceState,
   type WorkspaceSnapshot,
-} from '@llm-graph/api-contract';
-import { openGraphDatabase, WorkspaceRepository } from '@llm-graph/database';
-import type { JsonValue } from '@llm-graph/domain';
+} from '@waterlily/api-contract';
+import { openGraphDatabase, WorkspaceRepository } from '@waterlily/database';
+import type { JsonValue } from '@waterlily/domain';
 
 import { configuredProviders } from './config.js';
 import { createNodeServer } from './nodeServer.js';
-import { createWorkbenchHandler } from './server.js';
+import { createWaterLilyHandler } from './server.js';
 import type { WorkspaceStore } from './types.js';
 
 const databasePath = resolve(
-  process.env.WORKBENCH_DATABASE_PATH ?? '.data/workbench.sqlite',
+  process.env.WATERLILY_DATABASE_PATH ?? '.data/waterlily.sqlite',
 );
 mkdirSync(dirname(databasePath), { recursive: true });
 const database = openGraphDatabase(databasePath);
@@ -44,21 +44,21 @@ const store: WorkspaceStore = {
     );
   },
 };
-const handler = createWorkbenchHandler({
+const handler = createWaterLilyHandler({
   providers: configuredProviders(process.env),
   workspaces: store,
 });
 const server = createNodeServer(handler);
-const host = process.env.WORKBENCH_HOST ?? '127.0.0.1';
-const parsedPort = Number(process.env.WORKBENCH_PORT ?? '4317');
+const host = process.env.WATERLILY_HOST ?? '127.0.0.1';
+const parsedPort = Number(process.env.WATERLILY_PORT ?? '4317');
 if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65_535)
-  throw new Error('WORKBENCH_PORT must be an integer from 1 to 65535');
+  throw new Error('WATERLILY_PORT must be an integer from 1 to 65535');
 
 server.requestTimeout = 30_000;
 server.headersTimeout = 10_000;
 server.listen(parsedPort, host, () => {
   process.stdout.write(
-    `LLM Graph Workbench service listening on http://${host}:${String(parsedPort)}\n`,
+    `WaterLily service listening on http://${host}:${String(parsedPort)}\n`,
   );
 });
 

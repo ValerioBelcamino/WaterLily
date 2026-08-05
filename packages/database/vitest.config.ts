@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@llm-graph/domain': fileURLToPath(
+      '@waterlily/domain': fileURLToPath(
         new URL('../domain/src/index.ts', import.meta.url),
       ),
     },

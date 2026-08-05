@@ -54,7 +54,7 @@ Disconnecting the response aborts the upstream provider request.
 
 ### API boundary
 
-The `@llm-graph/api-contract` package defines transport types and strict runtime
+The `@waterlily/api-contract` package defines transport types and strict runtime
 parsers shared by the service and browser. JSON request bodies are capped at 10
 MiB. Unknown routes, methods, keys, versions, malformed UTF-8, and invalid graph
 or view state fail closed.

@@ -1,9 +1,9 @@
-# LLM Graph Workbench
+# WaterLily
 
-LLM Graph Workbench is a local-first, provider-neutral conversation IDE. It
-turns a long chat into an explicit directed graph: branch for a side question,
-split an answer into reusable excerpts, merge several lines of reasoning, and
-inspect exactly which revisions will be sent to a model.
+WaterLily is a local-first, provider-neutral conversation IDE. It turns a long
+chat into an explicit directed graph: branch for a side question, split an
+answer into reusable excerpts, merge several lines of reasoning, and inspect
+exactly which revisions will be sent to a model.
 
 The repository is an early public alpha. The core graph, deterministic context
 compiler, SQLite service, streaming provider boundary, graph operations, and
@@ -50,7 +50,7 @@ corepack pnpm dev:web
 ```
 
 Open <http://127.0.0.1:4173>. Vite proxies `/api` to the service at
-`http://127.0.0.1:4317`. Runtime data is created at `.data/workbench.sqlite` by
+`http://127.0.0.1:4317`. Runtime data is created at `.data/waterlily.sqlite` by
 default and is ignored by Git.
 
 For an OpenAI-compatible local server, a typical configuration is:

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 
-import type { GraphSnapshot, JsonValue } from '@llm-graph/domain';
+import type { GraphSnapshot, JsonValue } from '@waterlily/domain';
 
 import { DatabaseError, failDatabase } from './errors.js';
 import { GraphRepository } from './repository.js';

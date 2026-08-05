@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { reviseNode, type JsonValue } from '@llm-graph/domain';
+import { reviseNode, type JsonValue } from '@waterlily/domain';
 
 import {
   GraphRepository,

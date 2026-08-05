@@ -7,7 +7,7 @@ import {
   type GraphSnapshot,
   type NodeRevision,
   type TextContentBlock,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import { failWorkflow } from './errors.js';
 import type {

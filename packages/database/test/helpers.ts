@@ -9,7 +9,7 @@ import {
   reviseNode,
   type GraphSnapshot,
   type MessageRole,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import { DatabaseError, type DatabaseErrorCode } from '../src/index.js';
 

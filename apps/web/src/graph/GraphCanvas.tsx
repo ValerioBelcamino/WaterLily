@@ -9,22 +9,22 @@ import {
 } from '@xyflow/react';
 import { useMemo } from 'react';
 
-import { useWorkbenchStore } from '../state/workbenchStore';
+import { useWaterLilyStore } from '../state/waterlilyStore';
 import { CanvasGroupNode } from './CanvasGroupNode';
 import { ConversationNode } from './ConversationNode';
 import {
   toFlowEdges,
   toFlowNodes,
-  type WorkbenchFlowNode,
+  type WaterLilyFlowNode,
 } from './graphViewModel';
-import type { GraphSnapshot } from '@llm-graph/domain';
+import type { GraphSnapshot } from '@waterlily/domain';
 
 const nodeTypes = {
   canvasGroup: CanvasGroupNode,
   conversation: ConversationNode,
 } as const;
 
-function miniMapColor(node: WorkbenchFlowNode): string {
+function miniMapColor(node: WaterLilyFlowNode): string {
   if (node.type === 'canvasGroup') return `${node.data.color}44`;
   if (node.data.role === 'user') return '#58779a';
   if (node.data.role === 'assistant') return '#547a68';
@@ -37,15 +37,15 @@ export interface GraphCanvasProps {
 }
 
 export function GraphCanvas({ graph }: GraphCanvasProps) {
-  const positions = useWorkbenchStore((state) => state.positions);
-  const contextSelections = useWorkbenchStore(
+  const positions = useWaterLilyStore((state) => state.positions);
+  const contextSelections = useWaterLilyStore(
     (state) => state.contextSelections,
   );
-  const groups = useWorkbenchStore((state) => state.groups);
-  const selectedNodeIds = useWorkbenchStore((state) => state.selectedNodeIds);
-  const selectNode = useWorkbenchStore((state) => state.selectNode);
-  const setPosition = useWorkbenchStore((state) => state.setPosition);
-  const setPositions = useWorkbenchStore((state) => state.setPositions);
+  const groups = useWaterLilyStore((state) => state.groups);
+  const selectedNodeIds = useWaterLilyStore((state) => state.selectedNodeIds);
+  const selectNode = useWaterLilyStore((state) => state.selectNode);
+  const setPosition = useWaterLilyStore((state) => state.setPosition);
+  const setPositions = useWaterLilyStore((state) => state.setPositions);
   const nodes = useMemo(
     () =>
       toFlowNodes(graph, {
@@ -58,14 +58,14 @@ export function GraphCanvas({ graph }: GraphCanvasProps) {
   );
   const edges = useMemo(() => toFlowEdges(graph), [graph]);
 
-  const handleNodeClick: NodeMouseHandler<WorkbenchFlowNode> = (
+  const handleNodeClick: NodeMouseHandler<WaterLilyFlowNode> = (
     event,
     node,
   ) => {
     if (node.type === 'conversation') selectNode(node.id, event.shiftKey);
   };
 
-  const handleNodeDragStop: OnNodeDrag<WorkbenchFlowNode> = (_event, node) => {
+  const handleNodeDragStop: OnNodeDrag<WaterLilyFlowNode> = (_event, node) => {
     if (node.type === 'canvasGroup') {
       const delta = {
         x: node.position.x - node.data.origin.x,
@@ -107,7 +107,7 @@ export function GraphCanvas({ graph }: GraphCanvasProps) {
 
   return (
     <section className="graph-canvas" aria-label="Conversation graph canvas">
-      <ReactFlow<WorkbenchFlowNode>
+      <ReactFlow<WaterLilyFlowNode>
         colorMode="light"
         edges={edges}
         fitView
@@ -133,7 +133,7 @@ export function GraphCanvas({ graph }: GraphCanvasProps) {
         <MiniMap
           ariaLabel="Conversation graph overview"
           maskColor="rgba(247, 245, 237, 0.72)"
-          nodeColor={(node) => miniMapColor(node as WorkbenchFlowNode)}
+          nodeColor={(node) => miniMapColor(node as WaterLilyFlowNode)}
           pannable
           zoomable
         />

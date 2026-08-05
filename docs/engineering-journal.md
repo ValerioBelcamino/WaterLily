@@ -1,8 +1,8 @@
 # Engineering journal
 
-This is the durable development log for LLM Graph Workbench. Read it before
-starting a feature and update it only after recording the evidence used to
-verify that feature. Failed experiments and plan corrections belong here too.
+This is the durable development log for WaterLily. Read it before starting a
+feature and update it only after recording the evidence used to verify that
+feature. Failed experiments and plan corrections belong here too.
 
 ## Working conventions
 
@@ -28,7 +28,7 @@ verify that feature. Failed experiments and plan corrections belong here too.
 | SQLite persistence         | Complete | 32 tests; 99.31% lines, 99.02% branches  |
 | API contract               | Complete | 49 tests; 100% coverage                  |
 | Local application service  | Complete | 24 tests; 98.30% lines, 94.93% branches  |
-| Web graph workbench        | Complete | 58 tests; 97.37% lines, 90.02% branches  |
+| Web graph editor           | Complete | 58 tests; 97.37% lines, 90.02% branches  |
 | Provider streaming         | Complete | 46 tests; 98.97% lines, 96.77% branches  |
 | Branch/split/merge         | Complete | 30 workflow tests; 100% coverage         |
 | Import/export              | Complete | 36 tests; >97% all coverage dimensions   |
@@ -38,8 +38,8 @@ verify that feature. Failed experiments and plan corrections belong here too.
 
 ### Decisions
 
-- Created a new repository named `llm-graph-workbench`; the name is a working
-  identifier rather than a branding decision.
+- Created a new repository named `waterlily`; the name is a working identifier
+  rather than a branding decision.
 - Selected Apache-2.0 to minimize friction for downstream applications and
   provider/plugin authors.
 - Provider secrets will remain outside tracked files. The supplied DeepSeek
@@ -91,10 +91,10 @@ verify that feature. Failed experiments and plan corrections belong here too.
 
 ### Verification evidence
 
-- `pnpm --filter @llm-graph/domain typecheck`: pass.
-- `pnpm --filter @llm-graph/domain lint`: pass.
-- `pnpm --filter @llm-graph/domain build`: pass.
-- `pnpm --filter @llm-graph/domain test:coverage`: 30/30 tests pass; 100%
+- `pnpm --filter @waterlily/domain typecheck`: pass.
+- `pnpm --filter @waterlily/domain lint`: pass.
+- `pnpm --filter @waterlily/domain build`: pass.
+- `pnpm --filter @waterlily/domain test:coverage`: 30/30 tests pass; 100%
   statements, lines, and functions; 99.14% branches.
 - Property suites run 150 cases each for causal-chain closure, arbitrary
   reference cycles, and revision pin stability.
@@ -134,10 +134,10 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Verification evidence
 
-- `pnpm --filter @llm-graph/context-engine typecheck`: pass.
-- `pnpm --filter @llm-graph/context-engine lint`: pass.
-- `pnpm --filter @llm-graph/context-engine build`: pass.
-- `pnpm --filter @llm-graph/context-engine test:coverage`: 19/19 tests pass;
+- `pnpm --filter @waterlily/context-engine typecheck`: pass.
+- `pnpm --filter @waterlily/context-engine lint`: pass.
+- `pnpm --filter @waterlily/context-engine build`: pass.
+- `pnpm --filter @waterlily/context-engine test:coverage`: 19/19 tests pass;
   100% statements, branches, functions, and lines.
 - The property suite compiles 100 randomly sized chains up to 60 nodes and
   verifies exact ordering and deduplication.
@@ -179,10 +179,10 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Verification evidence
 
-- `pnpm --filter @llm-graph/database typecheck`: pass.
-- `pnpm --filter @llm-graph/database lint`: pass.
-- `pnpm --filter @llm-graph/database build`: pass.
-- `pnpm --filter @llm-graph/database test:coverage`: 21/21 tests pass; 100%
+- `pnpm --filter @waterlily/database typecheck`: pass.
+- `pnpm --filter @waterlily/database lint`: pass.
+- `pnpm --filter @waterlily/database build`: pass.
+- `pnpm --filter @waterlily/database test:coverage`: 21/21 tests pass; 100%
   statements, branches, functions, and lines.
 - Fifty property runs persist and reload random Unicode chains of up to 20
   nodes.
@@ -229,7 +229,7 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Verification evidence
 
-- `pnpm --filter @llm-graph/web test:coverage`: 19/19 tests pass; 100%
+- `pnpm --filter @waterlily/web test:coverage`: 19/19 tests pass; 100%
   statements, functions, and lines; 98.87% branches.
 - Tests cover graph projection, deterministic layout, edge presentation,
   attachment labels, truncation, deleted nodes, shared merge ancestry, canvas
@@ -288,7 +288,7 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Verification evidence
 
-- `pnpm --filter @llm-graph/providers test:coverage`: 46/46 deterministic tests
+- `pnpm --filter @waterlily/providers test:coverage`: 46/46 deterministic tests
   pass; 98.13% statements, 96.77% branches, 100% functions, and 98.97% lines.
 - Protocol fixtures cover one-byte stream boundaries, DeepSeek keep-alives,
   reasoning and usage chunks, all finish-reason mappings, abrupt EOF, missing
@@ -335,7 +335,7 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Verification evidence
 
-- `pnpm --filter @llm-graph/workflows test:coverage`: 30/30 tests pass; 100%
+- `pnpm --filter @waterlily/workflows test:coverage`: 30/30 tests pass; 100%
   statements, branches, functions, and lines.
 - Tests cover historical-revision branches, ordered labelled merges, verbatim
   splits from linear and merged histories, invalid split definitions, exact
@@ -361,13 +361,13 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Verification evidence
 
-- `pnpm --filter @llm-graph/interchange test:coverage`: 36/36 tests pass; 98.55%
+- `pnpm --filter @waterlily/interchange test:coverage`: 36/36 tests pass; 98.55%
   statements, 97.60% branches, 100% functions, and 98.50% lines.
 - Fixtures cover deterministic round trips, byte limits, canonical timestamps,
   malformed JSON causes, exact keys, graph cycles, positions, groups, secrets,
   attachments, mappings, metadata provenance, and collision rollback.
 
-## 2026-08-05 — Interactive graph editing workbench completed
+## 2026-08-05 — Interactive graph editing application completed
 
 ### Implemented
 
@@ -395,7 +395,7 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Verification evidence
 
-- `pnpm --filter @llm-graph/web test:coverage`: 40/40 tests pass; 96.49%
+- `pnpm --filter @waterlily/web test:coverage`: 40/40 tests pass; 96.49%
   statements, 91.01% branches, 96.57% functions, and 96.23% lines.
 - Component and state tests exercise branch, split, merge, group movement,
   additive selection, context exclusion, canonical export/download cleanup,
@@ -482,3 +482,26 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   (137.82 kB gzip) and 32.27 kB CSS (6.58 kB gzip).
 - The user-supplied key was never copied into a command, file, log, fixture, or
   provider request. No paid network request was made.
+
+## 2026-08-05 — WaterLily rebrand completed
+
+### Implemented
+
+- Renamed package scopes, application-service identifiers, client and store
+  modules, environment variables, interchange identifiers, browser tests, and
+  visible product copy to WaterLily.
+- Replaced the generic branch icon in the product mark with a flower mark while
+  preserving the graph-focused interface language.
+- Kept the legacy graph-format migration intentionally out of scope because no
+  released WaterLily documents exist yet.
+
+### Verification evidence
+
+- `pnpm install --offline`: all ten workspace projects resolve after the scope
+  changes and the lockfile remains coherent.
+- `pnpm check`: all 34 lint, strict-type, build-dependency, and deterministic
+  test tasks pass; 324 tests pass and the opt-in live test skips by default.
+- Case-insensitive tracked-source scan finds no former product name, package
+  scope, repository slug, or internal `workbench` identifier.
+- The local `.env` is ignored, has mode `600`, and contains a non-empty
+  credential variable; its value was not printed or staged.

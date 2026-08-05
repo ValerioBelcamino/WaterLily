@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { type GraphSnapshot } from '@llm-graph/domain';
+import { type GraphSnapshot } from '@waterlily/domain';
 
 import { compileContext } from '../src/index.js';
 import { addNode, connect, emptyGraph } from './helpers.js';

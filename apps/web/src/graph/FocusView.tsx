@@ -1,4 +1,4 @@
-import type { GraphNode, GraphSnapshot } from '@llm-graph/domain';
+import type { GraphNode, GraphSnapshot } from '@waterlily/domain';
 import { GitMerge, MessageSquareText } from 'lucide-react';
 
 import { contextThread, nodeTitle, revisionText } from './graphViewModel';

@@ -1,25 +1,25 @@
-import { createGraphDocument } from '@llm-graph/interchange';
+import { createGraphDocument } from '@waterlily/interchange';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { sampleGraph } from '../sampleGraph';
-import { useWorkbenchStore } from './workbenchStore';
+import { useWaterLilyStore } from './waterlilyStore';
 
 const CREATED_AT = '2026-08-05T14:00:00.000Z';
 
-describe('workbench store', () => {
+describe('WaterLily store', () => {
   beforeEach(() => {
-    useWorkbenchStore.getState().reset();
+    useWaterLilyStore.getState().reset();
   });
 
   it('keeps selection, view mode, and geometry as presentation state', () => {
-    useWorkbenchStore.getState().selectNode('node-answer');
-    useWorkbenchStore.getState().setViewMode('focus');
-    useWorkbenchStore.getState().setPosition('node-answer', { x: 12, y: 34 });
-    useWorkbenchStore.getState().setPositions({
+    useWaterLilyStore.getState().selectNode('node-answer');
+    useWaterLilyStore.getState().setViewMode('focus');
+    useWaterLilyStore.getState().setPosition('node-answer', { x: 12, y: 34 });
+    useWaterLilyStore.getState().setPositions({
       'node-note': { x: 50, y: 80 },
     });
 
-    expect(useWorkbenchStore.getState()).toMatchObject({
+    expect(useWaterLilyStore.getState()).toMatchObject({
       positions: {
         'node-answer': { x: 12, y: 34 },
         'node-note': { x: 50, y: 80 },
@@ -29,32 +29,32 @@ describe('workbench store', () => {
       viewMode: 'focus',
     });
     expect(
-      useWorkbenchStore.getState().graph.nodes['node-answer'],
+      useWaterLilyStore.getState().graph.nodes['node-answer'],
     ).not.toHaveProperty('position');
   });
 
   it('adds and removes nodes from an ordered additive selection', () => {
-    useWorkbenchStore.getState().selectNode('node-answer');
-    useWorkbenchStore.getState().selectNode('node-side-answer', true);
-    expect(useWorkbenchStore.getState().selectedNodeIds).toEqual([
+    useWaterLilyStore.getState().selectNode('node-answer');
+    useWaterLilyStore.getState().selectNode('node-side-answer', true);
+    expect(useWaterLilyStore.getState().selectedNodeIds).toEqual([
       'node-answer',
       'node-side-answer',
     ]);
 
-    useWorkbenchStore.getState().selectNode('node-side-answer', true);
-    expect(useWorkbenchStore.getState()).toMatchObject({
+    useWaterLilyStore.getState().selectNode('node-side-answer', true);
+    expect(useWaterLilyStore.getState()).toMatchObject({
       selectedNodeId: 'node-answer',
       selectedNodeIds: ['node-answer'],
     });
-    useWorkbenchStore.getState().selectNode('node-answer', true);
-    expect(useWorkbenchStore.getState()).toMatchObject({
+    useWaterLilyStore.getState().selectNode('node-answer', true);
+    expect(useWaterLilyStore.getState()).toMatchObject({
       selectedNodeId: null,
       selectedNodeIds: [],
     });
   });
 
   it('branches from and pins the selected parent revision', () => {
-    useWorkbenchStore.getState().branch({
+    useWaterLilyStore.getState().branch({
       edgeId: 'edge-test-branch',
       message: {
         blockId: 'block-test-branch',
@@ -67,7 +67,7 @@ describe('workbench store', () => {
       parentNodeId: 'node-answer',
     });
 
-    const state = useWorkbenchStore.getState();
+    const state = useWaterLilyStore.getState();
     expect(state.graph.nodes['node-test-branch']).toMatchObject({
       role: 'user',
       title: 'Inhibition branch',
@@ -82,7 +82,7 @@ describe('workbench store', () => {
   });
 
   it('merges ordered heads and selects the new merge node', () => {
-    useWorkbenchStore.getState().merge({
+    useWaterLilyStore.getState().merge({
       edgeIds: ['edge-test-merge-a', 'edge-test-merge-b'],
       heads: [
         { label: 'Overview', nodeId: 'node-answer' },
@@ -97,14 +97,14 @@ describe('workbench store', () => {
       },
     });
 
-    const state = useWorkbenchStore.getState();
+    const state = useWaterLilyStore.getState();
     expect(state.graph.edges['edge-test-merge-a']).toMatchObject({ slot: 0 });
     expect(state.graph.edges['edge-test-merge-b']).toMatchObject({ slot: 1 });
     expect(state.selectedNodeIds).toEqual(['node-test-merge']);
   });
 
   it('splits a revision into independently selected provenance roots', () => {
-    useWorkbenchStore.getState().split({
+    useWaterLilyStore.getState().split({
       createdAt: CREATED_AT,
       parts: [
         {
@@ -129,7 +129,7 @@ describe('workbench store', () => {
       sourceNodeId: 'node-answer',
     });
 
-    const state = useWorkbenchStore.getState();
+    const state = useWaterLilyStore.getState();
     expect(state.selectedNodeIds).toEqual(['node-split-a', 'node-split-b']);
     expect(state.graph.nodes['node-split-a']).toMatchObject({
       kind: 'excerpt',
@@ -147,12 +147,12 @@ describe('workbench store', () => {
   });
 
   it('stores explicit context decisions and validates presentation groups', () => {
-    useWorkbenchStore
+    useWaterLilyStore
       .getState()
       .setContextSelection('node-answer', { mode: 'excluded' });
-    useWorkbenchStore.getState().toggleContext('node-answer');
-    useWorkbenchStore.getState().toggleContext('node-note');
-    useWorkbenchStore.getState().addGroup({
+    useWaterLilyStore.getState().toggleContext('node-answer');
+    useWaterLilyStore.getState().toggleContext('node-note');
+    useWaterLilyStore.getState().addGroup({
       collapsed: false,
       color: '#547a68',
       id: 'group-study',
@@ -160,16 +160,16 @@ describe('workbench store', () => {
       title: 'Study set',
     });
 
-    expect(useWorkbenchStore.getState().contextSelections).toEqual({
+    expect(useWaterLilyStore.getState().contextSelections).toEqual({
       'node-answer': { mode: 'full' },
       'node-note': { mode: 'excluded' },
     });
-    expect(useWorkbenchStore.getState().groups[0]).toMatchObject({
+    expect(useWaterLilyStore.getState().groups[0]).toMatchObject({
       nodeIds: ['node-answer', 'node-note'],
       title: 'Study set',
     });
     expect(() =>
-      useWorkbenchStore.getState().addGroup({
+      useWaterLilyStore.getState().addGroup({
         collapsed: false,
         color: 'purple',
         id: 'group-invalid',
@@ -178,7 +178,7 @@ describe('workbench store', () => {
       }),
     ).toThrow('canvas group is invalid');
     expect(() =>
-      useWorkbenchStore.getState().addGroup({
+      useWaterLilyStore.getState().addGroup({
         collapsed: false,
         color: '#123456',
         id: 'group-overlap',
@@ -206,13 +206,13 @@ describe('workbench store', () => {
         positions: { 'node-answer': { x: 12, y: 34 } },
       },
     });
-    useWorkbenchStore
+    useWaterLilyStore
       .getState()
       .mergeDocument(document, (kind, originalId) =>
         kind === 'graph' ? 'import-graph' : `import-${kind}-${originalId}`,
       );
 
-    const state = useWorkbenchStore.getState();
+    const state = useWaterLilyStore.getState();
     expect(Object.keys(state.graph.nodes)).toHaveLength(14);
     expect(state.positions['import-node-node-answer']).toEqual({
       x: 12,
@@ -226,8 +226,8 @@ describe('workbench store', () => {
   });
 
   it('replaces persisted workspace state while preserving a valid selection', () => {
-    useWorkbenchStore.getState().selectNode('node-answer');
-    useWorkbenchStore.getState().replaceWorkspace({
+    useWaterLilyStore.getState().selectNode('node-answer');
+    useWaterLilyStore.getState().replaceWorkspace({
       graph: sampleGraph,
       state: {
         contextSelections: { 'node-note': { mode: 'excluded' } },
@@ -239,7 +239,7 @@ describe('workbench store', () => {
       },
     });
 
-    expect(useWorkbenchStore.getState()).toMatchObject({
+    expect(useWaterLilyStore.getState()).toMatchObject({
       contextSelections: { 'node-note': { mode: 'excluded' } },
       positions: { 'node-answer': { x: 7, y: 9 } },
       selectedNodeId: 'node-answer',
@@ -248,9 +248,9 @@ describe('workbench store', () => {
   });
 
   it('resets graph and UI state without retaining mutated references', () => {
-    useWorkbenchStore.getState().setPosition('node-answer', { x: 12, y: 34 });
-    useWorkbenchStore.getState().selectNode(null);
-    useWorkbenchStore.getState().branch({
+    useWaterLilyStore.getState().setPosition('node-answer', { x: 12, y: 34 });
+    useWaterLilyStore.getState().selectNode(null);
+    useWaterLilyStore.getState().branch({
       edgeId: 'edge-reset',
       message: {
         blockId: 'block-reset',
@@ -261,16 +261,16 @@ describe('workbench store', () => {
       },
       parentNodeId: 'node-answer',
     });
-    useWorkbenchStore.getState().reset();
+    useWaterLilyStore.getState().reset();
 
-    expect(useWorkbenchStore.getState()).toMatchObject({
+    expect(useWaterLilyStore.getState()).toMatchObject({
       positions: {},
       selectedNodeId: 'node-synthesis',
       selectedNodeIds: ['node-synthesis'],
       viewMode: 'canvas',
     });
     expect(
-      useWorkbenchStore.getState().graph.nodes['node-reset'],
+      useWaterLilyStore.getState().graph.nodes['node-reset'],
     ).toBeUndefined();
   });
 });

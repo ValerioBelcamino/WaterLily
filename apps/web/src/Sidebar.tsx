@@ -1,7 +1,7 @@
 import {
   BookOpenText,
   CircleHelp,
-  GitFork,
+  Flower2,
   PanelLeft,
   Plus,
   Settings,
@@ -15,12 +15,12 @@ export interface SidebarProps {
 export function Sidebar({ edgeCount, nodeCount }: SidebarProps) {
   return (
     <aside className="sidebar" aria-label="Workspace navigation">
-      <div className="sidebar__brand" aria-label="LLM Graph Workbench">
+      <div className="sidebar__brand" aria-label="WaterLily">
         <span className="sidebar__mark" aria-hidden="true">
-          <GitFork size={19} />
+          <Flower2 size={19} />
         </span>
         <span>
-          <strong>Workbench</strong>
+          <strong>WaterLily</strong>
           <small>Graph conversations</small>
         </span>
       </div>

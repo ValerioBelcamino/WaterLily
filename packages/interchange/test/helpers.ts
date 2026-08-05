@@ -5,7 +5,7 @@ import {
   createGraph,
   createNode,
   type GraphSnapshot,
-} from '@llm-graph/domain';
+} from '@waterlily/domain';
 
 import {
   createGraphDocument,
@@ -86,7 +86,7 @@ export function sampleGraph(): GraphSnapshot {
 export function documentInput(): CreateGraphDocumentInput {
   return {
     exportedAt: time(20),
-    exporter: { name: 'LLM Graph Workbench', version: '0.0.0' },
+    exporter: { name: 'WaterLily', version: '0.0.0' },
     graph: sampleGraph(),
     view: {
       groups: [
