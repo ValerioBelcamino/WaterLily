@@ -1,6 +1,10 @@
 import type { WorkspaceSnapshot } from '@waterlily/api-contract';
 import type { ContextSelection } from '@waterlily/context-engine';
-import type { GraphSnapshot } from '@waterlily/domain';
+import {
+  connectContext,
+  createNode,
+  type GraphSnapshot,
+} from '@waterlily/domain';
 import {
   mergeGraphDocument,
   type GraphDocumentV1,
@@ -17,10 +21,26 @@ import {
 } from '@waterlily/workflows';
 import { create } from 'zustand';
 
+import type { PreparedDroppedFile } from '../files/fileDrop';
 import type { CanvasPosition, CanvasPositions } from '../graph/graphViewModel';
 import { sampleGraph } from '../sampleGraph';
 
 export type ViewMode = 'canvas' | 'focus';
+
+export interface FileContextNodeInput {
+  readonly blockId: string;
+  readonly edgeId: string | null;
+  readonly file: PreparedDroppedFile;
+  readonly nodeId: string;
+  readonly position: CanvasPosition;
+  readonly revisionId: string;
+}
+
+export interface AddFileContextsInput {
+  readonly createdAt: string;
+  readonly files: readonly FileContextNodeInput[];
+  readonly targetNodeId: string | null;
+}
 
 interface WaterLilyState {
   readonly contextSelections: Readonly<Record<string, ContextSelection>>;
@@ -30,6 +50,7 @@ interface WaterLilyState {
   readonly selectedNodeId: string | null;
   readonly selectedNodeIds: readonly string[];
   readonly viewMode: ViewMode;
+  readonly addFileContexts: (input: AddFileContextsInput) => void;
   readonly addGroup: (group: GraphViewGroup) => void;
   readonly branch: (input: Omit<BranchInput, 'graph'>) => void;
   readonly merge: (input: Omit<MergeInput, 'graph'>) => void;
@@ -65,6 +86,84 @@ function initialState() {
 
 export const useWaterLilyStore = create<WaterLilyState>()((set) => ({
   ...initialState(),
+  addFileContexts: (input) => {
+    set((state) => {
+      if (input.files.length === 0)
+        throw new TypeError('At least one dropped file is required');
+      if (
+        input.targetNodeId !== null &&
+        state.graph.nodes[input.targetNodeId] === undefined
+      ) {
+        throw new TypeError('The file context target does not exist');
+      }
+
+      let graph = state.graph;
+      let nextSlot =
+        input.targetNodeId === null
+          ? 0
+          : Math.max(
+              -1,
+              ...Object.values(graph.edges).flatMap((edge) =>
+                edge.kind === 'context' &&
+                edge.targetNodeId === input.targetNodeId
+                  ? [edge.slot]
+                  : [],
+              ),
+            ) + 1;
+      const positions: Record<string, CanvasPosition> = {};
+
+      for (const item of input.files) {
+        if (input.targetNodeId !== null && item.edgeId === null) {
+          throw new TypeError('Connected file context requires an edge ID');
+        }
+        graph = createNode(graph, {
+          blocks: [
+            {
+              format: 'plain',
+              id: item.blockId,
+              text: item.file.text,
+              type: 'text',
+            },
+          ],
+          createdAt: input.createdAt,
+          kind: 'attachment',
+          metadata: {
+            file: {
+              lastModified: item.file.lastModified,
+              mediaType: item.file.mediaType,
+              name: item.file.name,
+              size: item.file.size,
+              source: 'drop',
+            },
+          },
+          nodeId: item.nodeId,
+          revisionId: item.revisionId,
+          title: item.file.name,
+        });
+        if (input.targetNodeId !== null && item.edgeId !== null) {
+          graph = connectContext(graph, {
+            createdAt: input.createdAt,
+            edgeId: item.edgeId,
+            label: 'file context',
+            slot: nextSlot,
+            sourceNodeId: item.nodeId,
+            targetNodeId: input.targetNodeId,
+          });
+          nextSlot += 1;
+        }
+        positions[item.nodeId] = item.position;
+      }
+
+      const selectedNodeId =
+        input.targetNodeId ?? input.files.at(-1)?.nodeId ?? null;
+      return {
+        graph,
+        positions: { ...state.positions, ...positions },
+        selectedNodeId,
+        selectedNodeIds: selectedNodeId === null ? [] : [selectedNodeId],
+      };
+    });
+  },
   addGroup: (group) => {
     set((state) => {
       if (

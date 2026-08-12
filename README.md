@@ -18,6 +18,8 @@ accepted RFCs.
 - Branch from an immutable revision, make verbatim provenance-linked excerpts,
   and merge ordered context heads without flattening their history.
 - Include or exclude nodes from future model context explicitly.
+- Drop up to eight text or source files onto the canvas to create visible file
+  nodes and connect their contents to the currently selected context head.
 - Stream answer text and provider-exposed public reasoning from DeepSeek or an
   OpenAI-compatible local server, with cancellation and visible failures.
 - Persist graph, context selections, positions, and groups atomically in local
@@ -124,7 +126,8 @@ details.
 - This is a single-user local application; authentication, remote sync, and
   real-time collaboration are not implemented.
 - Plain JSON v1 rejects attachment bytes until the checksummed archive extension
-  is specified.
+  is specified. Canvas drops currently accept textual files up to 2 MiB each;
+  PDFs and other binary formats require a future extraction pipeline.
 - Imported graphs merge into the active workspace. A multi-document workspace
   browser and graph renaming flow are still planned.
 - Browser visual-regression coverage and packaged desktop distribution remain

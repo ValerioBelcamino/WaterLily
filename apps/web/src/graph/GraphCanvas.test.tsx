@@ -1,4 +1,11 @@
-import { act, render } from '@testing-library/react';
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import type * as ReactFlowModule from '@xyflow/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +14,9 @@ import type { WaterLilyFlowNode } from './graphViewModel';
 
 interface FlowPropsCapture {
   readonly nodes: WaterLilyFlowNode[];
+  readonly onInit: (
+    instance: ReactFlowModule.ReactFlowInstance<WaterLilyFlowNode>,
+  ) => void;
   readonly onNodeClick: (
     event: { readonly shiftKey?: boolean },
     node: WaterLilyFlowNode,
@@ -22,6 +32,7 @@ interface MiniMapPropsCapture {
 const capture = vi.hoisted(() => ({
   flow: undefined as FlowPropsCapture | undefined,
   miniMap: undefined as MiniMapPropsCapture | undefined,
+  screenToFlowPosition: vi.fn(() => ({ x: 50, y: 75 })),
 }));
 
 vi.mock('@xyflow/react', async (importOriginal) => {
@@ -38,6 +49,9 @@ vi.mock('@xyflow/react', async (importOriginal) => {
       props: FlowPropsCapture & { readonly children?: ReactNode },
     ): ReactNode => {
       capture.flow = props;
+      props.onInit({
+        screenToFlowPosition: capture.screenToFlowPosition,
+      } as unknown as ReactFlowModule.ReactFlowInstance<WaterLilyFlowNode>);
       return props.children;
     },
   };
@@ -52,6 +66,7 @@ describe('GraphCanvas', () => {
     useWaterLilyStore.getState().reset();
     capture.flow = undefined;
     capture.miniMap = undefined;
+    capture.screenToFlowPosition.mockClear();
   });
 
   it('wires selection, dragging, deselection, and minimap semantics', () => {
@@ -163,5 +178,144 @@ describe('GraphCanvas', () => {
       y: 15,
     });
     expect(miniMap.nodeColor(group)).toBe('#7669a844');
+  });
+
+  it('drops text files at canvas coordinates and connects them to selection', async () => {
+    render(<GraphCanvas graph={sampleGraph} />);
+    const canvas = screen.getByRole('region', {
+      name: 'Conversation graph canvas',
+    });
+    const file = new File(['Study evidence'], 'evidence.txt', {
+      lastModified: 42,
+      type: 'text/plain',
+    });
+    const dataTransfer = {
+      dropEffect: 'none',
+      files: [file],
+      types: ['Files'],
+    };
+
+    fireEvent.dragEnter(canvas, { dataTransfer });
+    expect(
+      screen.getByText('Connect text files to this context'),
+    ).toBeInTheDocument();
+    fireEvent.dragOver(canvas, { dataTransfer });
+    expect(dataTransfer.dropEffect).toBe('copy');
+    const dropEvent = createEvent.drop(canvas, { dataTransfer });
+    Object.defineProperties(dropEvent, {
+      clientX: { value: 300 },
+      clientY: { value: 200 },
+    });
+    fireEvent(canvas, dropEvent);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Connected 1 file to Merged understanding.'),
+      ).toBeInTheDocument();
+    });
+    const state = useWaterLilyStore.getState();
+    const fileNode = Object.values(state.graph.nodes).find(
+      (node) => node.title === 'evidence.txt',
+    );
+    expect(fileNode).toBeDefined();
+    expect(state.positions[fileNode?.id ?? '']).toEqual({ x: 50, y: 75 });
+    expect(
+      Object.values(state.graph.edges).find(
+        (edge) => edge.kind === 'context' && edge.sourceNodeId === fileNode?.id,
+      ),
+    ).toMatchObject({
+      label: 'file context',
+      targetNodeId: 'node-synthesis',
+    });
+    expect(capture.screenToFlowPosition).toHaveBeenCalledWith({
+      x: 300,
+      y: 200,
+    });
+  });
+
+  it('shows safe validation feedback and leaves the graph unchanged', async () => {
+    const nodeCount = Object.keys(
+      useWaterLilyStore.getState().graph.nodes,
+    ).length;
+    render(<GraphCanvas graph={sampleGraph} />);
+    const canvas = screen.getByRole('region', {
+      name: 'Conversation graph canvas',
+    });
+    const dataTransfer = {
+      dropEffect: 'none',
+      files: [new File(['%PDF'], 'paper.pdf', { type: 'application/pdf' })],
+      types: ['Files'],
+    };
+
+    fireEvent.dragEnter(canvas, { dataTransfer });
+    fireEvent.dragLeave(canvas, { dataTransfer });
+    expect(
+      screen.queryByText('Connect text files to this context'),
+    ).not.toBeInTheDocument();
+    fireEvent.drop(canvas, { dataTransfer });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('paper.pdf is not a supported text file.'),
+      ).toBeInTheDocument();
+    });
+    expect(Object.keys(useWaterLilyStore.getState().graph.nodes)).toHaveLength(
+      nodeCount,
+    );
+  });
+
+  it('creates multiple standalone file nodes and ignores non-file drags', async () => {
+    useWaterLilyStore.getState().selectNode(null);
+    render(<GraphCanvas graph={sampleGraph} />);
+    const canvas = screen.getByRole('region', {
+      name: 'Conversation graph canvas',
+    });
+    const textTransfer = {
+      dropEffect: 'none',
+      files: [],
+      types: ['text/plain'],
+    };
+    fireEvent.dragEnter(canvas, { dataTransfer: textTransfer });
+    fireEvent.dragOver(canvas, { dataTransfer: textTransfer });
+    fireEvent.dragLeave(canvas, { dataTransfer: textTransfer });
+    fireEvent.drop(canvas, { dataTransfer: textTransfer });
+    expect(
+      screen.queryByText('Connect text files to this context'),
+    ).not.toBeInTheDocument();
+
+    const dataTransfer = {
+      dropEffect: 'none',
+      files: [
+        new File(['one'], 'one.txt', { type: 'text/plain' }),
+        new File(['two'], 'two.txt', { type: 'text/plain' }),
+      ],
+      types: ['Files'],
+    };
+    fireEvent.dragEnter(canvas, { dataTransfer });
+    fireEvent.dragEnter(canvas, { dataTransfer });
+    expect(
+      screen.getByText('Release to create standalone context nodes'),
+    ).toBeInTheDocument();
+    fireEvent.dragLeave(canvas, { dataTransfer });
+    expect(
+      screen.getByText('Connect text files to this context'),
+    ).toBeInTheDocument();
+    fireEvent.drop(canvas, { dataTransfer });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Created 2 file context nodes.'),
+      ).toBeInTheDocument();
+    });
+    const state = useWaterLilyStore.getState();
+    const created = Object.values(state.graph.nodes).filter(
+      (node) => node.title === 'one.txt' || node.title === 'two.txt',
+    );
+    expect(created).toHaveLength(2);
+    expect(state.selectedNodeId).toBe(
+      created.find((node) => node.title === 'two.txt')?.id,
+    );
+    expect(state.positions[created[0]?.id ?? '']).toEqual({ x: 50, y: 75 });
+    expect(state.positions[created[1]?.id ?? '']).toEqual({ x: 50, y: 255 });
   });
 });

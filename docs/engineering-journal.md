@@ -32,6 +32,7 @@ feature. Failed experiments and plan corrections belong here too.
 | Provider streaming         | Complete | 46 tests; 98.97% lines, 96.77% branches  |
 | Branch/split/merge         | Complete | 30 workflow tests; 100% coverage         |
 | Import/export              | Complete | 36 tests; >97% all coverage dimensions   |
+| Dropped-file context       | Complete | Unit, compilation, and Chromium E2E pass |
 | Public-alpha hardening     | Complete | Full-stack Chromium E2E and CI pass      |
 
 ## 2026-08-05 — Bootstrap
@@ -505,3 +506,43 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   scope, repository slug, or internal `workbench` identifier.
 - The local `.env` is ignored, has mode `600`, and contains a non-empty
   credential variable; its value was not printed or staged.
+
+## 2026-08-05 — Dropped-file context completed
+
+### Implemented
+
+- The canvas accepts one to eight dropped text or source files, reads them only
+  in the browser, creates visible attachment-kind nodes containing plain text,
+  and connects them to the selected node through ordered context edges.
+- File metadata records the name, media type, byte size, last-modified value,
+  and explicit drop source. Presentation positions remain outside the immutable
+  graph, while file text remains portable, persistent model context.
+- Dropping with no selection creates standalone context nodes. Unsupported,
+  empty, binary-looking, unreadable, oversized, or excessive batches fail
+  atomically with bounded user-facing errors. The initial limit is 2 MiB per
+  file and eight files per drop; PDF/binary extraction remains deferred.
+
+### Defects caught and corrected during verification
+
+- TypeScript did not retain a context-edge discriminant across a separate
+  filter/map chain. Slot collection now uses a discriminating `flatMap`, making
+  the narrowed type and fallback behavior explicit.
+- The first focused suite passed all behavior tests but reduced total web branch
+  coverage below its 90% gate. Nested drag depth, non-file drags, standalone
+  multi-file drops, all validation failures, and both byte-order-mark paths were
+  tested; the gate was preserved.
+
+### Verification evidence
+
+- `pnpm --filter @waterlily/web typecheck` and `lint`: pass.
+- Web unit/component suite: 72 tests pass. It covers file classification,
+  Unicode/BOM handling, read failures, limits, atomic state changes, exact
+  metadata, ordered slots, standalone nodes, drop geometry, overlays, and safe
+  errors.
+- `pnpm --filter @waterlily/web test:coverage`: pass at 97.03% statements,
+  90.03% branches, 97.22% functions, and 97.74% lines.
+- A real context-engine compilation from the new file edges contains both
+  dropped text blocks in their explicit slot order.
+- Production build passes. Chromium full-stack E2E passes and verifies browser
+  file transfer, visible node creation, context-edge persistence through the
+  loopback service and SQLite, generation, branching, and reload.

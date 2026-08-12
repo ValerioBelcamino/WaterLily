@@ -1,3 +1,4 @@
+import { compileContext } from '@waterlily/context-engine';
 import { createGraphDocument } from '@waterlily/interchange';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -79,6 +80,171 @@ describe('WaterLily store', () => {
       targetNodeId: 'node-test-branch',
     });
     expect(state.selectedNodeIds).toEqual(['node-test-branch']);
+  });
+
+  it('adds dropped text files as ordered context for the selected target', async () => {
+    useWaterLilyStore.getState().addFileContexts({
+      createdAt: CREATED_AT,
+      files: [
+        {
+          blockId: 'block-file-a',
+          edgeId: 'edge-file-a',
+          file: {
+            lastModified: 10,
+            mediaType: 'text/markdown',
+            name: 'lecture.md',
+            size: 12,
+            text: 'Lecture text',
+          },
+          nodeId: 'node-file-a',
+          position: { x: 90, y: 120 },
+          revisionId: 'revision-file-a',
+        },
+        {
+          blockId: 'block-file-b',
+          edgeId: 'edge-file-b',
+          file: {
+            lastModified: 20,
+            mediaType: 'application/json',
+            name: 'facts.json',
+            size: 14,
+            text: '{"fact":true}',
+          },
+          nodeId: 'node-file-b',
+          position: { x: 90, y: 300 },
+          revisionId: 'revision-file-b',
+        },
+      ],
+      targetNodeId: 'node-synthesis',
+    });
+
+    const state = useWaterLilyStore.getState();
+    expect(state.graph.nodes['node-file-a']).toMatchObject({
+      kind: 'attachment',
+      role: null,
+      title: 'lecture.md',
+    });
+    expect(state.graph.revisions['revision-file-a']).toMatchObject({
+      blocks: [
+        {
+          format: 'plain',
+          id: 'block-file-a',
+          text: 'Lecture text',
+          type: 'text',
+        },
+      ],
+      metadata: {
+        file: {
+          lastModified: 10,
+          mediaType: 'text/markdown',
+          name: 'lecture.md',
+          size: 12,
+          source: 'drop',
+        },
+      },
+    });
+    expect(state.graph.edges['edge-file-a']).toMatchObject({
+      kind: 'context',
+      slot: 2,
+      sourceNodeId: 'node-file-a',
+      targetNodeId: 'node-synthesis',
+    });
+    expect(state.graph.edges['edge-file-b']).toMatchObject({ slot: 3 });
+    expect(state.positions).toMatchObject({
+      'node-file-a': { x: 90, y: 120 },
+      'node-file-b': { x: 90, y: 300 },
+    });
+    expect(state.selectedNodeIds).toEqual(['node-synthesis']);
+    const compiled = await compileContext({
+      graph: state.graph,
+      heads: [{ label: 'Active branch', nodeId: 'node-synthesis', slot: 0 }],
+    });
+    expect(
+      [
+        ...compiled.common.items,
+        ...compiled.branches.flatMap((part) => part.items),
+      ]
+        .filter((item) => item.nodeKind === 'attachment')
+        .map((item) => item.blocks[0]),
+    ).toEqual([
+      {
+        format: 'plain',
+        id: 'block-file-a',
+        text: 'Lecture text',
+        type: 'text',
+      },
+      {
+        format: 'plain',
+        id: 'block-file-b',
+        text: '{"fact":true}',
+        type: 'text',
+      },
+    ]);
+  });
+
+  it('creates standalone file context and rejects invalid batches atomically', () => {
+    const standalone = {
+      blockId: 'block-standalone-file',
+      edgeId: null,
+      file: {
+        lastModified: 10,
+        mediaType: 'text/plain',
+        name: 'standalone.txt',
+        size: 4,
+        text: 'text',
+      },
+      nodeId: 'node-standalone-file',
+      position: { x: 1, y: 2 },
+      revisionId: 'revision-standalone-file',
+    } as const;
+    useWaterLilyStore.getState().addFileContexts({
+      createdAt: CREATED_AT,
+      files: [standalone],
+      targetNodeId: null,
+    });
+    expect(useWaterLilyStore.getState()).toMatchObject({
+      selectedNodeId: 'node-standalone-file',
+      selectedNodeIds: ['node-standalone-file'],
+    });
+
+    const graphBeforeFailure = useWaterLilyStore.getState().graph;
+    expect(() =>
+      useWaterLilyStore.getState().addFileContexts({
+        createdAt: CREATED_AT,
+        files: [],
+        targetNodeId: null,
+      }),
+    ).toThrow('At least one');
+    expect(() =>
+      useWaterLilyStore.getState().addFileContexts({
+        createdAt: CREATED_AT,
+        files: [{ ...standalone, nodeId: 'another-node' }],
+        targetNodeId: 'missing-node',
+      }),
+    ).toThrow('target does not exist');
+    expect(() =>
+      useWaterLilyStore.getState().addFileContexts({
+        createdAt: CREATED_AT,
+        files: [
+          {
+            ...standalone,
+            blockId: 'block-new-file',
+            nodeId: 'node-new-file',
+            revisionId: 'revision-new-file',
+          },
+          standalone,
+        ],
+        targetNodeId: null,
+      }),
+    ).toThrow();
+    expect(useWaterLilyStore.getState().graph).toBe(graphBeforeFailure);
+    expect(() =>
+      useWaterLilyStore.getState().addFileContexts({
+        createdAt: CREATED_AT,
+        files: [{ ...standalone, edgeId: null, nodeId: 'node-connected-file' }],
+        targetNodeId: 'node-answer',
+      }),
+    ).toThrow('requires an edge ID');
   });
 
   it('merges ordered heads and selects the new merge node', () => {

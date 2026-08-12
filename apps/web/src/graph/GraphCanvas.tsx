@@ -4,11 +4,15 @@ import {
   Controls,
   MiniMap,
   ReactFlow,
+  type ReactFlowInstance,
   type NodeMouseHandler,
   type OnNodeDrag,
 } from '@xyflow/react';
-import { useMemo } from 'react';
+import type { GraphSnapshot } from '@waterlily/domain';
+import { useMemo, useRef, useState, type DragEvent } from 'react';
 
+import { prepareDroppedFiles } from '../files/fileDrop';
+import { createPortableId } from '../ids';
 import { useWaterLilyStore } from '../state/waterlilyStore';
 import { CanvasGroupNode } from './CanvasGroupNode';
 import { ConversationNode } from './ConversationNode';
@@ -17,7 +21,6 @@ import {
   toFlowNodes,
   type WaterLilyFlowNode,
 } from './graphViewModel';
-import type { GraphSnapshot } from '@waterlily/domain';
 
 const nodeTypes = {
   canvasGroup: CanvasGroupNode,
@@ -37,11 +40,19 @@ export interface GraphCanvasProps {
 }
 
 export function GraphCanvas({ graph }: GraphCanvasProps) {
+  const [dragActive, setDragActive] = useState(false);
+  const [dropStatus, setDropStatus] = useState<string | null>(null);
+  const dragDepth = useRef(0);
+  const flowInstance = useRef<ReactFlowInstance<WaterLilyFlowNode> | null>(
+    null,
+  );
+  const addFileContexts = useWaterLilyStore((state) => state.addFileContexts);
   const positions = useWaterLilyStore((state) => state.positions);
   const contextSelections = useWaterLilyStore(
     (state) => state.contextSelections,
   );
   const groups = useWaterLilyStore((state) => state.groups);
+  const selectedNodeId = useWaterLilyStore((state) => state.selectedNodeId);
   const selectedNodeIds = useWaterLilyStore((state) => state.selectedNodeIds);
   const selectNode = useWaterLilyStore((state) => state.selectNode);
   const setPosition = useWaterLilyStore((state) => state.setPosition);
@@ -105,8 +116,79 @@ export function GraphCanvas({ graph }: GraphCanvasProps) {
     });
   };
 
+  const hasFiles = (event: DragEvent<HTMLElement>): boolean =>
+    Array.from(event.dataTransfer.types).includes('Files');
+
+  const handleDragEnter = (event: DragEvent<HTMLElement>): void => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepth.current += 1;
+    setDragActive(true);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLElement>): void => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLElement>): void => {
+    if (!hasFiles(event)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragActive(false);
+  };
+
+  const handleDrop = async (event: DragEvent<HTMLElement>): Promise<void> => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepth.current = 0;
+    setDragActive(false);
+    const files = Array.from(event.dataTransfer.files);
+    const targetNodeId = selectedNodeId;
+    const position = flowInstance.current?.screenToFlowPosition({
+      x: event.clientX,
+      y: event.clientY,
+    }) ?? { x: event.clientX, y: event.clientY };
+
+    try {
+      const prepared = await prepareDroppedFiles(files);
+      const createdAt = new Date().toISOString();
+      addFileContexts({
+        createdAt,
+        files: prepared.map((file, index) => ({
+          blockId: createPortableId('block'),
+          edgeId: targetNodeId === null ? null : createPortableId('edge'),
+          file,
+          nodeId: createPortableId('node'),
+          position: { x: position.x, y: position.y + index * 180 },
+          revisionId: createPortableId('revision'),
+        })),
+        targetNodeId,
+      });
+      setDropStatus(
+        targetNodeId === null
+          ? `Created ${String(prepared.length)} file context ${prepared.length === 1 ? 'node' : 'nodes'}.`
+          : `Connected ${String(prepared.length)} ${prepared.length === 1 ? 'file' : 'files'} to ${graph.nodes[targetNodeId]?.title ?? 'the selected node'}.`,
+      );
+    } catch (cause) {
+      setDropStatus(
+        cause instanceof Error
+          ? cause.message
+          : 'The files could not be added.',
+      );
+    }
+  };
+
   return (
-    <section className="graph-canvas" aria-label="Conversation graph canvas">
+    <section
+      className={`graph-canvas${dragActive ? ' is-file-drag-active' : ''}`}
+      aria-label="Conversation graph canvas"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={(event) => void handleDrop(event)}
+    >
       <ReactFlow<WaterLilyFlowNode>
         colorMode="light"
         edges={edges}
@@ -117,6 +199,9 @@ export function GraphCanvas({ graph }: GraphCanvasProps) {
         nodes={nodes}
         nodesConnectable={false}
         nodeTypes={nodeTypes}
+        onInit={(instance) => {
+          flowInstance.current = instance;
+        }}
         onNodeClick={handleNodeClick}
         onNodeDragStop={handleNodeDragStop}
         onPaneClick={() => {
@@ -139,6 +224,21 @@ export function GraphCanvas({ graph }: GraphCanvasProps) {
         />
         <Controls position="bottom-right" showInteractive={false} />
       </ReactFlow>
+      {dragActive ? (
+        <div className="file-drop-overlay" role="status">
+          <strong>Connect text files to this context</strong>
+          <span>
+            {selectedNodeId === null
+              ? 'Release to create standalone context nodes'
+              : `Release to connect to ${graph.nodes[selectedNodeId]?.title ?? 'the selected node'}`}
+          </span>
+        </div>
+      ) : null}
+      {dropStatus === null ? null : (
+        <div className="file-drop-status" role="status">
+          {dropStatus}
+        </div>
+      )}
     </section>
   );
 }

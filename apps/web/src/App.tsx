@@ -20,6 +20,7 @@ import { useWaterLilyService } from './api/useWaterLilyService';
 import { FocusView } from './graph/FocusView';
 import { GraphCanvas } from './graph/GraphCanvas';
 import { nodeTitle, revisionText } from './graph/graphViewModel';
+import { createPortableId } from './ids';
 import { Inspector } from './Inspector';
 import { downloadGraph } from './interchange/downloadGraph';
 import {
@@ -53,10 +54,6 @@ function ModeButton({
       {children}
     </button>
   );
-}
-
-function createPortableId(prefix: string): string {
-  return `${prefix}-${globalThis.crypto.randomUUID()}`;
 }
 
 function importId(kind: ImportEntityKind): string {
