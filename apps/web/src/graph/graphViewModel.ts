@@ -6,7 +6,11 @@ import type {
   MessageRole,
 } from '@waterlily/domain';
 import type { GraphViewGroup, GraphViewState } from '@waterlily/interchange';
-import type { ContextSelection } from '@waterlily/context-engine';
+import {
+  compileContext,
+  type ContextHead,
+  type ContextSelection,
+} from '@waterlily/context-engine';
 import { MarkerType, type Edge, type Node } from '@xyflow/react';
 
 export interface CanvasPosition {
@@ -16,8 +20,16 @@ export interface CanvasPosition {
 
 export type CanvasPositions = Readonly<Record<string, CanvasPosition>>;
 
+export interface ActiveContextFlow {
+  readonly edgeIds: readonly string[];
+  readonly nodeIds: readonly string[];
+}
+
+export type ContextFlowState = 'active' | 'idle' | 'inactive';
+
 export interface ConversationNodeData extends Record<string, unknown> {
   readonly contextMode: ContextSelection['mode'];
+  readonly flowState: ContextFlowState;
   readonly kind: string;
   readonly preview: string;
   readonly role: MessageRole | null;
@@ -37,6 +49,7 @@ export type GroupFlowNode = Node<GroupNodeData, 'canvasGroup'>;
 export type WaterLilyFlowNode = ConversationFlowNode | GroupFlowNode;
 
 export interface FlowProjectionOptions {
+  readonly activeFlow?: ActiveContextFlow | null;
   readonly contextSelections?: Readonly<Record<string, ContextSelection>>;
   readonly groups?: readonly GraphViewGroup[];
   readonly positions?: GraphViewState['positions'];
@@ -165,12 +178,48 @@ export function nodeTitle(graph: GraphSnapshot, nodeId: string): string {
   return `${node.kind.charAt(0).toUpperCase()}${node.kind.slice(1)}`;
 }
 
+export async function deriveActiveContextFlow(
+  graph: GraphSnapshot,
+  heads: readonly ContextHead[],
+  contextSelections: Readonly<Record<string, ContextSelection>> = {},
+): Promise<ActiveContextFlow> {
+  const compiled = await compileContext({
+    graph,
+    heads,
+    overrides: Object.entries(contextSelections).map(([nodeId, selection]) => ({
+      nodeId,
+      selection,
+    })),
+  });
+  const activeNodeIds = new Set(
+    compiled.decisions
+      .filter((decision) => decision.mode !== 'excluded')
+      .map((decision) => decision.nodeId),
+  );
+  const nodeIds = [...activeNodeIds].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  const edgeIds = Object.values(graph.edges)
+    .filter(
+      (edge) =>
+        edge.kind === 'context' &&
+        activeNodeIds.has(edge.sourceNodeId) &&
+        activeNodeIds.has(edge.targetNodeId),
+    )
+    .map((edge) => edge.id)
+    .sort((left, right) => left.localeCompare(right));
+  return { edgeIds, nodeIds };
+}
+
 export function toFlowNodes(
   graph: GraphSnapshot,
   options: FlowProjectionOptions = {},
 ): WaterLilyFlowNode[] {
   const positions = options.positions ?? {};
   const selectedNodeIds = new Set(options.selectedNodeIds ?? []);
+  const activeNodeIds = new Set(options.activeFlow?.nodeIds ?? []);
+  const hasActiveFlow =
+    options.activeFlow !== null && options.activeFlow !== undefined;
   const groups = options.groups ?? [];
   const defaults = deriveDefaultPositions(graph);
   const absolutePositions: CanvasPositions = Object.fromEntries(
@@ -247,6 +296,11 @@ export function toFlowNodes(
     return {
       data: {
         contextMode: options.contextSelections?.[id]?.mode ?? 'full',
+        flowState: hasActiveFlow
+          ? activeNodeIds.has(id)
+            ? 'active'
+            : 'inactive'
+          : 'idle',
         kind: node.kind,
         preview: text.length > 180 ? `${text.slice(0, 177)}…` : text,
         role: node.role,
@@ -264,13 +318,25 @@ export function toFlowNodes(
   return [...groupNodes, ...conversationNodes];
 }
 
-export function toFlowEdges(graph: GraphSnapshot): Edge[] {
+export function toFlowEdges(
+  graph: GraphSnapshot,
+  activeFlow: ActiveContextFlow | null = null,
+): Edge[] {
+  const activeEdgeIds = new Set(activeFlow?.edgeIds ?? []);
   return Object.values(graph.edges)
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((edge) => {
       const presentation = edgePresentation[edge.kind];
+      const flowState: ContextFlowState =
+        activeFlow === null
+          ? 'idle'
+          : activeEdgeIds.has(edge.id)
+            ? 'active'
+            : 'inactive';
       return {
-        data: { kind: edge.kind },
+        animated: flowState === 'active',
+        className: `context-flow-edge context-flow-edge--${flowState}`,
+        data: { flowState, kind: edge.kind },
         id: edge.id,
         label: edgeLabel(edge),
         markerEnd: {
@@ -284,6 +350,7 @@ export function toFlowEdges(graph: GraphSnapshot): Edge[] {
           stroke: presentation.color,
           strokeDasharray: presentation.dash,
           strokeWidth: edge.kind === 'context' ? 2.4 : 1.8,
+          opacity: flowState === 'inactive' ? 0.16 : 1,
         },
         target: edge.targetNodeId,
         type: 'smoothstep',

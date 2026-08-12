@@ -19,8 +19,9 @@ export function ConversationNode({
 
   return (
     <article
-      aria-label={`${data.title}, ${category}`}
-      className={`conversation-node conversation-node--${category}${selected ? ' is-selected' : ''}${data.contextMode === 'excluded' ? ' is-context-excluded' : ''}`}
+      aria-label={`${data.title}, ${category}${data.flowState === 'active' ? ', active model context' : ''}`}
+      className={`conversation-node conversation-node--${category}${selected ? ' is-selected' : ''}${data.contextMode === 'excluded' ? ' is-context-excluded' : ''} is-flow-${data.flowState}`}
+      data-flow-state={data.flowState}
     >
       <Handle
         className="conversation-node__handle"
@@ -44,7 +45,11 @@ export function ConversationNode({
       <p>{data.preview}</p>
       <footer>
         <span>
-          {data.contextMode === 'excluded' ? 'context off' : data.kind}
+          {data.flowState === 'active'
+            ? 'active context'
+            : data.contextMode === 'excluded'
+              ? 'context off'
+              : data.kind}
         </span>
         <span aria-hidden="true">↗</span>
       </footer>

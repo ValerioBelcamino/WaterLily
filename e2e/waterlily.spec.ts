@@ -59,12 +59,30 @@ test('generates from a graph head and persists graph and view changes', async ({
     }),
   ).toBeVisible();
 
+  const synthesisNode = page.getByRole('article', {
+    name: /^Merged understanding, summary/,
+  });
+  const evidenceNode = page.getByRole('article', {
+    name: /evidence\.txt/,
+  });
+  const noteNode = page.getByRole('article', { name: /Dam analogy/ });
   await page.getByRole('button', { name: /Generate/ }).click();
+  await expect(synthesisNode).toHaveAttribute('data-flow-state', 'active');
+  await expect(synthesisNode).toHaveCSS(
+    'animation-name',
+    'active-context-node-pulse',
+  );
+  await expect(evidenceNode).toHaveAttribute('data-flow-state', 'active');
+  await expect(noteNode).toHaveAttribute('data-flow-state', 'inactive');
+  await expect(noteNode).toHaveCSS('opacity', '0.32');
+  await expect(page.locator('.context-flow-edge--active')).not.toHaveCount(0);
   const inspector = page.getByLabel('Node inspector');
   await expect(
     inspector.getByText('The end-to-end response is committed.'),
   ).toBeVisible();
   await expect(inspector.getByText('Public reasoning')).toBeVisible();
+  await expect(synthesisNode).toHaveAttribute('data-flow-state', 'idle');
+  await expect(page.locator('.context-flow-edge--active')).toHaveCount(0);
   await expect(
     page.getByRole('button', {
       name: /Oxidative phosphorylation 9 nodes/,

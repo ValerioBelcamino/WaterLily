@@ -19,6 +19,7 @@ import { ConversationNode } from './ConversationNode';
 import {
   toFlowEdges,
   toFlowNodes,
+  type ActiveContextFlow,
   type WaterLilyFlowNode,
 } from './graphViewModel';
 
@@ -36,10 +37,11 @@ function miniMapColor(node: WaterLilyFlowNode): string {
 }
 
 export interface GraphCanvasProps {
+  readonly activeFlow?: ActiveContextFlow | null;
   readonly graph: GraphSnapshot;
 }
 
-export function GraphCanvas({ graph }: GraphCanvasProps) {
+export function GraphCanvas({ activeFlow = null, graph }: GraphCanvasProps) {
   const [dragActive, setDragActive] = useState(false);
   const [dropStatus, setDropStatus] = useState<string | null>(null);
   const dragDepth = useRef(0);
@@ -60,14 +62,18 @@ export function GraphCanvas({ graph }: GraphCanvasProps) {
   const nodes = useMemo(
     () =>
       toFlowNodes(graph, {
+        activeFlow,
         contextSelections,
         groups,
         positions,
         selectedNodeIds,
       }),
-    [contextSelections, graph, groups, positions, selectedNodeIds],
+    [activeFlow, contextSelections, graph, groups, positions, selectedNodeIds],
   );
-  const edges = useMemo(() => toFlowEdges(graph), [graph]);
+  const edges = useMemo(
+    () => toFlowEdges(graph, activeFlow),
+    [activeFlow, graph],
+  );
 
   const handleNodeClick: NodeMouseHandler<WaterLilyFlowNode> = (
     event,

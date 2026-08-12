@@ -294,7 +294,7 @@ export function App() {
         <div className="workspace__body">
           <div className="workspace__surface">
             {viewMode === 'canvas' ? (
-              <GraphCanvas graph={graph} />
+              <GraphCanvas activeFlow={service.activeFlow} graph={graph} />
             ) : (
               <FocusView
                 graph={graph}

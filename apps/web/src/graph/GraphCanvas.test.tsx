@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WaterLilyFlowNode } from './graphViewModel';
 
 interface FlowPropsCapture {
+  readonly edges: ReactFlowModule.Edge[];
   readonly nodes: WaterLilyFlowNode[];
   readonly onInit: (
     instance: ReactFlowModule.ReactFlowInstance<WaterLilyFlowNode>,
@@ -178,6 +179,34 @@ describe('GraphCanvas', () => {
       y: 15,
     });
     expect(miniMap.nodeColor(group)).toBe('#7669a844');
+  });
+
+  it('projects active generation nodes and edges into React Flow', () => {
+    render(
+      <GraphCanvas
+        activeFlow={{
+          edgeIds: ['edge-answer-synthesis'],
+          nodeIds: ['node-answer', 'node-synthesis'],
+        }}
+        graph={sampleGraph}
+      />,
+    );
+    const flow = capture.flow;
+    expect(flow).toBeDefined();
+    if (flow === undefined) return;
+
+    expect(
+      flow.nodes.find((node) => node.id === 'node-answer')?.data,
+    ).toMatchObject({ flowState: 'active' });
+    expect(
+      flow.nodes.find((node) => node.id === 'node-note')?.data,
+    ).toMatchObject({ flowState: 'inactive' });
+    expect(
+      flow.edges.find((edge) => edge.id === 'edge-answer-synthesis'),
+    ).toMatchObject({ animated: true, data: { flowState: 'active' } });
+    expect(
+      flow.edges.find((edge) => edge.id === 'edge-answer-note'),
+    ).toMatchObject({ animated: false, data: { flowState: 'inactive' } });
   });
 
   it('drops text files at canvas coordinates and connects them to selection', async () => {

@@ -62,22 +62,26 @@ const server = createServer((request, response) => {
         },
       ],
     });
-    streamChunk(response, {
-      ...base,
-      choices: [
-        {
-          delta: { content: 'The end-to-end response is committed.' },
-          finish_reason: null,
-          index: 0,
-        },
-      ],
-    });
-    streamChunk(response, {
-      ...base,
-      choices: [{ delta: {}, finish_reason: 'stop', index: 0 }],
-      usage: { completion_tokens: 8, prompt_tokens: 42, total_tokens: 50 },
-    });
-    response.end('data: [DONE]\n\n');
+    setTimeout(() => {
+      streamChunk(response, {
+        ...base,
+        choices: [
+          {
+            delta: { content: 'The end-to-end response is committed.' },
+            finish_reason: null,
+            index: 0,
+          },
+        ],
+      });
+    }, 250);
+    setTimeout(() => {
+      streamChunk(response, {
+        ...base,
+        choices: [{ delta: {}, finish_reason: 'stop', index: 0 }],
+        usage: { completion_tokens: 8, prompt_tokens: 42, total_tokens: 50 },
+      });
+      response.end('data: [DONE]\n\n');
+    }, 600);
   });
 });
 

@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleGraph } from '../sampleGraph';
 import {
   contextThread,
+  deriveActiveContextFlow,
   deriveDefaultPositions,
   nodeTitle,
   revisionText,
@@ -52,6 +53,7 @@ describe('graph view model', () => {
     expect(nodes).toHaveLength(7);
     expect(answer).toMatchObject({
       data: {
+        flowState: 'idle',
         kind: 'message',
         role: 'assistant',
         title: 'Mechanism overview',
@@ -154,6 +156,55 @@ describe('graph view model', () => {
       data: { kind: 'reference' },
       label: 'uses analogy',
       style: { strokeDasharray: '2 7', strokeWidth: 1.8 },
+    });
+  });
+
+  it('derives and projects the exact included generation flow', async () => {
+    const activeFlow = await deriveActiveContextFlow(
+      sampleGraph,
+      [{ label: 'Synthesis', nodeId: 'node-synthesis', slot: 0 }],
+      { 'node-answer': { mode: 'excluded' } },
+    );
+
+    expect(activeFlow).toEqual({
+      edgeIds: [
+        'edge-side-answer-synthesis',
+        'edge-side-question-answer',
+        'edge-system-question',
+      ],
+      nodeIds: [
+        'node-question',
+        'node-side-answer',
+        'node-side-question',
+        'node-synthesis',
+        'node-system',
+      ],
+    });
+    const nodes = toFlowNodes(sampleGraph, { activeFlow });
+    expect(
+      nodes.find((node) => node.id === 'node-synthesis')?.data,
+    ).toMatchObject({ flowState: 'active' });
+    expect(nodes.find((node) => node.id === 'node-answer')?.data).toMatchObject(
+      {
+        flowState: 'inactive',
+      },
+    );
+    const edges = toFlowEdges(sampleGraph, activeFlow);
+    expect(
+      edges.find((edge) => edge.id === 'edge-system-question'),
+    ).toMatchObject({
+      animated: true,
+      className: 'context-flow-edge context-flow-edge--active',
+      data: { flowState: 'active' },
+      style: { opacity: 1 },
+    });
+    expect(
+      edges.find((edge) => edge.id === 'edge-answer-synthesis'),
+    ).toMatchObject({
+      animated: false,
+      className: 'context-flow-edge context-flow-edge--inactive',
+      data: { flowState: 'inactive' },
+      style: { opacity: 0.16 },
     });
   });
 

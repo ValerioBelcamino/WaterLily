@@ -20,6 +20,7 @@ function serviceState(
   overrides: Partial<WaterLilyServiceState> = {},
 ): WaterLilyServiceState {
   return {
+    activeFlow: null,
     cancel: vi.fn(),
     generate: vi.fn(() => Promise.resolve()),
     generation: {

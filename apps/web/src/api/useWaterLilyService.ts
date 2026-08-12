@@ -5,7 +5,11 @@ import type {
 } from '@waterlily/api-contract';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { nodeTitle } from '../graph/graphViewModel';
+import {
+  deriveActiveContextFlow,
+  nodeTitle,
+  type ActiveContextFlow,
+} from '../graph/graphViewModel';
 import { useWaterLilyStore } from '../state/waterlilyStore';
 import { WaterLilyApiError, WaterLilyClient } from './waterlilyClient';
 
@@ -34,6 +38,7 @@ export interface UseWaterLilyServiceOptions {
 }
 
 export interface WaterLilyServiceState {
+  readonly activeFlow: ActiveContextFlow | null;
   readonly cancel: () => void;
   readonly generate: (headNodeId: string) => Promise<void>;
   readonly generation: GenerationViewState;
@@ -76,6 +81,7 @@ export function useWaterLilyService(
   const replaceWorkspace = useWaterLilyStore((state) => state.replaceWorkspace);
   const [generation, setGeneration] =
     useState<GenerationViewState>(IDLE_GENERATION);
+  const [activeFlow, setActiveFlow] = useState<ActiveContextFlow | null>(null);
   const [providers, setProviders] = useState<readonly ProviderDescriptor[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
     null,
@@ -188,27 +194,29 @@ export function useWaterLilyService(
       abortRef.current = controller;
       setGeneration({ ...IDLE_GENERATION, status: 'saving' });
       try {
+        const generationWorkspace = workspaceRef.current;
+        const title = nodeTitle(generationWorkspace.graph, headNodeId);
+        const heads = [{ label: title, nodeId: headNodeId, slot: 0 }] as const;
+        const overrides = Object.entries(
+          generationWorkspace.state.contextSelections,
+        ).map(([nodeId, selection]) => ({ nodeId, selection }));
+        setActiveFlow(
+          await deriveActiveContextFlow(
+            generationWorkspace.graph,
+            heads,
+            generationWorkspace.state.contextSelections,
+          ),
+        );
         await saveQueueRef.current.catch(() => undefined);
-        await persist(workspaceRef.current);
+        await persist(generationWorkspace);
         setGeneration({ ...IDLE_GENERATION, status: 'streaming' });
         const result = await client.generate(
           {
-            context: {
-              heads: [
-                {
-                  label: nodeTitle(workspaceRef.current.graph, headNodeId),
-                  nodeId: headNodeId,
-                  slot: 0,
-                },
-              ],
-              overrides: Object.entries(
-                workspaceRef.current.state.contextSelections,
-              ).map(([nodeId, selection]) => ({ nodeId, selection })),
-            },
-            graphId: workspaceRef.current.graph.id,
+            context: { heads, overrides },
+            graphId: generationWorkspace.graph.id,
             providerId: provider.id,
             request: { model: provider.defaultModel },
-            title: `Response to ${nodeTitle(workspaceRef.current.graph, headNodeId)}`,
+            title: `Response to ${title}`,
           },
           (item: GenerationStreamItem) => {
             if (item.type !== 'provider-event') return;
@@ -243,6 +251,7 @@ export function useWaterLilyService(
           status: 'idle',
         }));
       } finally {
+        setActiveFlow(null);
         if (abortRef.current === controller) abortRef.current = null;
       }
     },
@@ -257,6 +266,7 @@ export function useWaterLilyService(
   );
 
   return {
+    activeFlow,
     cancel,
     generate,
     generation,

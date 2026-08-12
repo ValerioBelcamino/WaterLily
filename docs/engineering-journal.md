@@ -33,6 +33,7 @@ feature. Failed experiments and plan corrections belong here too.
 | Branch/split/merge         | Complete | 30 workflow tests; 100% coverage         |
 | Import/export              | Complete | 36 tests; >97% all coverage dimensions   |
 | Dropped-file context       | Complete | Unit, compilation, and Chromium E2E pass |
+| Active context flow        | Complete | Exact compiler projection and E2E glow   |
 | Public-alpha hardening     | Complete | Full-stack Chromium E2E and CI pass      |
 
 ## 2026-08-05 — Bootstrap
@@ -546,3 +547,41 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 - Production build passes. Chromium full-stack E2E passes and verifies browser
   file transfer, visible node creation, context-edge persistence through the
   loopback service and SQLite, generation, branching, and reload.
+
+## 2026-08-05 — Active generation flow completed
+
+### Implemented
+
+- Every generation now compiles the captured graph snapshot and context
+  overrides before persistence, then exposes the exact included node set and
+  connecting context edges only for that request's lifetime.
+- Active nodes and edges receive a green pulse and glow inspired by Unreal's
+  execution graph; unrelated nodes and every non-context path fade. Semantic
+  `data-flow-state` values and an `active context` footer preserve inspectable
+  meaning beyond color.
+- The flow begins during the pre-generation save, remains visible throughout
+  streaming, and clears after success, provider failure, or cancellation.
+  Reduced-motion preferences collapse every pulse to a single near-instant
+  iteration.
+
+### Plan correction
+
+- A first App-level jsdom assertion expected React Flow nodes to render without
+  browser geometry. React Flow intentionally withheld those nodes in that
+  environment, so projection remains covered at the component boundary while the
+  actual App wiring, DOM state, animation, fading, and cleanup are verified in
+  Chromium.
+
+### Verification evidence
+
+- `pnpm --filter @waterlily/web typecheck` and `lint`: pass.
+- Web suite: 74 tests pass. Exact compiler-derived node and edge sets are tested
+  with an excluded intermediate node; projections cover active, inactive, and
+  idle states; the service test observes the flow during a pending request and
+  verifies cancellation cleanup.
+- `pnpm --filter @waterlily/web test:coverage`: pass at 97.12% statements,
+  90.15% branches, 97.32% functions, and 97.82% lines.
+- Production build passes. Chromium full-stack E2E asserts that the selected
+  synthesis and newly dropped file are active, an unrelated note fades to 0.32
+  opacity, the node pulse animation is applied, active edges exist during the
+  delayed SSE response, and all flow state returns to idle after commit.

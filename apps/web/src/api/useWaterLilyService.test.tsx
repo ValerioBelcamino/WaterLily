@@ -284,6 +284,24 @@ describe('useWaterLilyService', () => {
     await waitFor(() =>
       expect(active.result.current.generation.status).toBe('streaming'),
     );
+    expect(active.result.current.activeFlow).toEqual({
+      edgeIds: [
+        'edge-answer-side-question',
+        'edge-answer-synthesis',
+        'edge-question-answer',
+        'edge-side-answer-synthesis',
+        'edge-side-question-answer',
+        'edge-system-question',
+      ],
+      nodeIds: [
+        'node-answer',
+        'node-question',
+        'node-side-answer',
+        'node-side-question',
+        'node-synthesis',
+        'node-system',
+      ],
+    });
     act(() => active.result.current.cancel());
     await waitFor(() =>
       expect(active.result.current.generation).toMatchObject({
@@ -291,6 +309,7 @@ describe('useWaterLilyService', () => {
         status: 'idle',
       }),
     );
+    expect(active.result.current.activeFlow).toBeNull();
   });
 
   it('degrades to offline and can be explicitly disabled', async () => {

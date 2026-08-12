@@ -22,6 +22,8 @@ accepted RFCs.
   nodes and connect their contents to the currently selected context head.
 - Stream answer text and provider-exposed public reasoning from DeepSeek or an
   OpenAI-compatible local server, with cancellation and visible failures.
+- See the exact nodes and context edges used by a running generation glow while
+  unrelated graph paths fade, with animation disabled for reduced-motion users.
 - Persist graph, context selections, positions, and groups atomically in local
   SQLite with optimistic conflict detection.
 - Import another graph with collision-safe identifier remapping and export
