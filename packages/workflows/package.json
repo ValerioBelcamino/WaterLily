@@ -1,0 +1,29 @@
+{
+  "name": "@llm-graph/workflows",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Atomic graph editing and generation orchestration workflows",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src test vitest.config.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@llm-graph/context-engine": "workspace:*",
+    "@llm-graph/domain": "workspace:*",
+    "@llm-graph/providers": "workspace:*"
+  }
+}
