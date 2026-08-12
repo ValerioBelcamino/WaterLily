@@ -1,0 +1,41 @@
+export {
+  connectContext,
+  connectProvenance,
+  connectReference,
+  createGraph,
+  createNode,
+  reviseNode,
+} from './commands.js';
+export {
+  GRAPH_ERROR_CODES,
+  GraphDomainError,
+  type GraphErrorCode,
+} from './errors.js';
+export {
+  EDGE_KINDS,
+  MESSAGE_ROLES,
+  NODE_KINDS,
+  type AttachmentContentBlock,
+  type ConnectContextInput,
+  type ConnectProvenanceInput,
+  type ConnectReferenceInput,
+  type ContentBlock,
+  type ContextEdge,
+  type CreateGraphInput,
+  type CreateNodeInput,
+  type EdgeKind,
+  type GraphEdge,
+  type GraphNode,
+  type GraphSnapshot,
+  type JsonPrimitive,
+  type JsonValue,
+  type MessageRole,
+  type NodeKind,
+  type NodeRevision,
+  type ProvenanceEdge,
+  type ProvenanceRelation,
+  type ReferenceEdge,
+  type ReviseNodeInput,
+  type TextContentBlock,
+} from './types.js';
+export { validateGraph } from './validation.js';
