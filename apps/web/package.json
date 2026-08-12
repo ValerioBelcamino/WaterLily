@@ -1,0 +1,41 @@
+{
+  "name": "@llm-graph/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Graph-native conversation workbench web client",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "dev": "vite",
+    "lint": "eslint src test vite.config.ts vitest.config.ts",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@llm-graph/api-contract": "workspace:*",
+    "@llm-graph/context-engine": "workspace:*",
+    "@llm-graph/domain": "workspace:*",
+    "@llm-graph/interchange": "workspace:*",
+    "@llm-graph/workflows": "workspace:*",
+    "@xyflow/react": "catalog:",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "eslint-plugin-react-refresh": "catalog:",
+    "jsdom": "catalog:",
+    "vite": "catalog:"
+  }
+}
