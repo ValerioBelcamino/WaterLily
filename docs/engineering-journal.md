@@ -34,6 +34,7 @@ feature. Failed experiments and plan corrections belong here too.
 | Import/export              | Complete | 36 tests; >97% all coverage dimensions   |
 | Dropped-file context       | Complete | Unit, compilation, and Chromium E2E pass |
 | Active context flow        | Complete | Exact compiler projection and E2E glow   |
+| Live DeepSeek verification | Complete | 3 credential-safe V4 Flash calls pass    |
 | Public-alpha hardening     | Complete | Full-stack Chromium E2E and CI pass      |
 
 ## 2026-08-05 — Bootstrap
@@ -504,7 +505,7 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 - `pnpm check`: all 34 lint, strict-type, build-dependency, and deterministic
   test tasks pass; 324 tests pass and the opt-in live test skips by default.
 - Case-insensitive tracked-source scan finds no former product name, package
-  scope, repository slug, or internal `workbench` identifier.
+  scope, repository slug, or legacy internal identifier.
 - The local `.env` is ignored, has mode `600`, and contains a non-empty
   credential variable; its value was not printed or staged.
 
@@ -571,6 +572,11 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   environment, so projection remains covered at the component boundary while the
   actual App wiring, DOM state, animation, fading, and cleanup are verified in
   Chromium.
+- Root E2E lint initially lacked DOM library types, and replacing the typed
+  Playwright callback with a string expression silently returned a function
+  instead of dispatching file events. The root test project now declares DOM
+  types, retains Node types, and uses the original browser callback; root lint,
+  strict type checking, and the full Chromium path all pass together.
 
 ### Verification evidence
 
@@ -585,3 +591,41 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   synthesis and newly dropped file are active, an unrelated note fades to 0.32
   opacity, the node pulse animation is applied, active edges exist during the
   delayed SSE response, and all flow state returns to idle after commit.
+
+## 2026-08-05 — Live DeepSeek verification completed
+
+### Implemented
+
+- Added an explicit billable live command that loads the ignored root `.env`
+  only inside child Node processes. Normal deterministic tests do not load it
+  and continue to skip live tests cleanly.
+- Expanded the provider test to cover V4 Flash non-thinking and thinking modes,
+  response metadata, public-reasoning deltas, answer deltas, terminal events,
+  and internally consistent usage accounting.
+- Added a full application-service live test covering provider registration,
+  health discovery, context compilation, real SSE decoding, provider-neutral
+  events, NDJSON transport, generation commit, persisted graph growth, assistant
+  content, model/provider/usage provenance, and credential absence from every
+  serialized artifact.
+
+### Plan correction
+
+- The first service attempt made no paid request because its health assertion
+  expected only DeepSeek, while the service correctly also advertises an
+  unavailable local-provider slot. The exact two-descriptor contract is now
+  asserted, after which only the service live test was rerun.
+
+### Verification evidence
+
+- Official DeepSeek documentation confirms that `deepseek-v4-flash` is the
+  current low-cost model, uses `https://api.deepseek.com`, supports both modes,
+  toggles them with `thinking.type`, and streams reasoning separately from final
+  answer content.
+- `pnpm --filter @waterlily/providers test:live`: 2/2 live tests pass in 2.72
+  seconds using explicit disabled and enabled thinking modes.
+- `pnpm --filter @waterlily/server test:live`: 1/1 live test passes in 5.45
+  seconds through the complete application-service path.
+- Three small paid requests completed. No test printed a prompt, full response,
+  or credential; boolean scans confirm the credential is absent from provider
+  events, generation stream items, committed metadata, and persisted workspace.
+- `.env` remains ignored with mode `600`; it is absent from Git's index.

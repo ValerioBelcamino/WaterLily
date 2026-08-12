@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { createServer } from 'node:http';
 import process from 'node:process';
+import { setTimeout } from 'node:timers';
 
 const host = '127.0.0.1';
 const port = 4320;

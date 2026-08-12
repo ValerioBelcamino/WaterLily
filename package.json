@@ -21,6 +21,7 @@
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "test:e2e": "pnpm build && playwright test",
+    "test:live:deepseek": "pnpm --filter @waterlily/providers test:live && pnpm --filter @waterlily/server test:live",
     "typecheck": "tsc -p tsconfig.json --noEmit && turbo run typecheck"
   },
   "devDependencies": {

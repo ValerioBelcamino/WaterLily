@@ -3,6 +3,7 @@
   "compilerOptions": {
     "declaration": false,
     "declarationMap": false,
+    "lib": ["DOM", "DOM.Iterable", "ES2024"],
     "noEmit": true,
     "types": ["node"]
   },

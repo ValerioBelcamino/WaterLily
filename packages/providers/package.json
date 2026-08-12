@@ -18,6 +18,7 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint src test vitest.config.ts",
     "test": "vitest run",
+    "test:live": "node --env-file=../../.env ../../node_modules/vitest/vitest.mjs run test/deepseek.live.test.ts --testTimeout=120000",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }

@@ -104,11 +104,15 @@ corepack pnpm test:coverage
 corepack pnpm build
 corepack pnpm exec playwright install chromium
 corepack pnpm test:e2e
+# Optional and billable; loads the ignored root .env file.
+corepack pnpm test:live:deepseek
 ```
 
 Package coverage gates are enforced in CI. Provider tests are deterministic by
 default. A real DeepSeek request runs only when both `DEEPSEEK_API_KEY` and
-`RUN_LIVE_PROVIDER_TESTS=1` are present; a live request may incur cost.
+`RUN_LIVE_PROVIDER_TESTS=1` are present. The live command checks non-thinking
+and thinking adapter streams plus a complete application-service generation; it
+makes three small requests and may incur cost.
 
 ## Security and privacy
 
