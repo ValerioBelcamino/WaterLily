@@ -1,0 +1,24 @@
+{
+  "name": "@llm-graph/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Loopback-only persistence and provider service for LLM Graph Workbench",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "pnpm build && node --env-file-if-exists=../../.env dist/main.js",
+    "lint": "eslint src test vitest.config.ts",
+    "start": "node --env-file-if-exists=../../.env dist/main.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@llm-graph/api-contract": "workspace:*",
+    "@llm-graph/database": "workspace:*",
+    "@llm-graph/domain": "workspace:*",
+    "@llm-graph/providers": "workspace:*",
+    "@llm-graph/workflows": "workspace:*"
+  }
+}
