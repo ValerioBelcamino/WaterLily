@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a user-facing improvement or extensibility point.
+title: '[Feature]: '
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description:
+        Explain the learning or conversation workflow that is blocked.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe observable behavior, not only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and alternatives
+      description: Include related tools, tradeoffs, or compatibility concerns.
+  - type: checkboxes
+    id: semantics
+    attributes:
+      label: Architecture impact
+      options:
+        - label:
+            This may change graph, context, persistence, interchange, provider,
+            or security semantics and may need an RFC.
