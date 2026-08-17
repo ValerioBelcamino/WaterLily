@@ -74,7 +74,23 @@ jobs:
         run: pnpm --filter @waterlily/desktop test
 
       - name: Build platform installer
+        if: runner.os != 'Windows'
         run: pnpm --filter @waterlily/desktop make
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $logPath = Join-Path $env:RUNNER_TEMP 'waterlily-windows-maker.log'
+          pnpm --filter @waterlily/desktop make 2>&1 |
+            Tee-Object -FilePath $logPath
+          $makerExitCode = $LASTEXITCODE
+          if ($makerExitCode -ne 0) {
+            $details = (Get-Content $logPath -Tail 40) -join "`n"
+            $details = $details.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Windows installer failure::$details"
+            exit $makerExitCode
+          }
 
       # The .deb installer applies these production permissions automatically.
       # The smoke test launches Forge's unpacked staging directory directly.
