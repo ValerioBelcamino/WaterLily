@@ -805,11 +805,25 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   generated staging copy. The unit suite is now explicitly scoped to
   `test/**/*.test.ts`, and the deploy manifest ships only assets, production
   output, and Forge configuration.
+- GitHub's Linux runner cannot launch Forge's unpacked Chromium sandbox until it
+  has the root/setuid permissions that the Debian installer applies. The
+  smoke-test staging helper now receives those exact permissions; the sandbox
+  remains enabled.
+- Windows requires its `.cmd` pnpm shim to run through the system shell. After
+  staging was portable, Forge still attempted to rebuild better-sqlite3 and
+  failed against its pinned node-gyp/Visual Studio discovery. The package ships
+  N-API binaries for all three targets, so Forge now ignores only that redundant
+  rebuild and the packaged-app tests verify the selected binary at runtime.
+- The first hosted production E2E run exposed a controlled React Flow geometry
+  race after graph mutations. Node measurements and explicit handle geometry now
+  survive projections; 104 web tests cover the measurement path and the complete
+  browser flow passed 12 consecutive isolated stress runs.
 
 ### Verification evidence
 
 - `pnpm check`: all 39 lint, typecheck, build-prerequisite, and deterministic
-  test tasks pass across ten workspaces.
+  test tasks pass across ten workspaces (463 passing tests; the three billable
+  live-provider tests remain skipped by default).
 - `pnpm test:coverage`: all 19 tasks pass. The desktop protocol router reaches
   97.14% statements, 89.47% branches, 100% functions, and 96.96% lines without
   lowering any existing package gate.
@@ -823,5 +837,11 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   verifies its dependencies, application launcher, desktop entry, icon, ASAR,
   and native SQLite payload; its local SHA-256 is
   `fa2f4816cd0eeec8dda912c59f55551f6e0fda9bcf3816c4d87877768188dce6`.
-- The cross-platform workflow is syntax-checked locally. Windows/macOS maker
-  execution remains to be verified by its first GitHub-hosted matrix run.
+- GitHub-hosted run
+  [32024077013](https://github.com/ValerioBelcamino/WaterLily/actions/runs/32024077013)
+  passes Linux x64, Windows x64, and macOS arm64 maker and packaged-app smoke
+  jobs. Its seven-day artifacts are `waterlily-linux-x64` (107,611,004 bytes),
+  `waterlily-windows-x64` (306,048,355 bytes), and `waterlily-macos-arm64`
+  (267,195,965 bytes). The companion
+  [CI run](https://github.com/ValerioBelcamino/WaterLily/actions/runs/32024077053)
+  also passes through production Chromium E2E.
