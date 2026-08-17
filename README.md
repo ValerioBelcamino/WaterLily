@@ -18,12 +18,20 @@ accepted RFCs.
 - Branch from an immutable revision, make verbatim provenance-linked excerpts,
   and merge ordered context heads without flattening their history.
 - Include or exclude nodes from future model context explicitly.
-- Drop up to eight text or source files onto the canvas to create visible file
-  nodes and connect their contents to the currently selected context head.
-- Stream answer text and provider-exposed public reasoning from DeepSeek or an
-  OpenAI-compatible local server, with cancellation and visible failures.
-- See the exact nodes and context edges used by a running generation glow while
-  unrelated graph paths fade, with animation disabled for reduced-motion users.
+- Click a graph head to preview its compiled context path, or Shift-click
+  several heads to preview an ordered multi-branch flow. Active lines glow blue;
+  a running generation pulses green while unrelated paths fade.
+- Drop up to eight supported documents, images, or source files onto the canvas
+  as native attachments (10 MiB each). Incompatible files and paths turn red for
+  models that cannot receive them and generation explains how to proceed.
+- Stream answer text and provider-exposed public reasoning from OpenAI
+  Responses, DeepSeek, or an OpenAI-compatible local server, with cancellation
+  and visible failures.
+- Add Python cells to any branch and replay the included cells through that node
+  in a fresh local process. Stdout, stderr, exit status, timeouts, and
+  truncation are captured in a new execution node.
+- Store several local provider profiles, then choose a provider, model, and key
+  from the workspace toolbar. Secrets never enter browser state.
 - Persist graph, context selections, positions, and groups atomically in local
   SQLite with optimistic conflict detection.
 - Import another graph with collision-safe identifier remapping and export
@@ -39,9 +47,11 @@ cp .env.example .env
 corepack pnpm build
 ```
 
-Edit `.env` and set either `DEEPSEEK_API_KEY` or a
-`LOCAL_LLM_BASE_URL`/`LOCAL_LLM_MODEL` pair. Credentials are read only by the
-loopback service; they are never sent to browser JavaScript or graph exports.
+You can configure `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, or a
+`LOCAL_LLM_BASE_URL`/`LOCAL_LLM_MODEL` pair in `.env`. Alternatively, start the
+app and use the key button in the toolbar to add several profiles. Credentials
+are read only by the loopback service; they are never sent back to browser
+JavaScript or graph exports.
 
 Start the service and web client in separate terminals:
 
@@ -67,6 +77,33 @@ LOCAL_LLM_MODEL=your-installed-model
 The local adapter is intended for servers such as Ollama, vLLM, and LM Studio.
 No API key is required unless that server expects one.
 
+Stored profiles use a versioned JSON file at
+`$XDG_DATA_HOME/waterlily/credentials.json` (normally
+`~/.local/share/waterlily/credentials.json`) with user-only directory/file
+permissions (`0700`/`0600`). This is deliberately outside the repository and is
+never exposed through the health API. It is protected by your operating-system
+account but is not encrypted at rest; an OS keychain backend is future work.
+
+Native attachment bytes are kept beside the local database in
+`.data/attachments` by default. OpenAI Responses profiles can receive supported
+files directly. DeepSeek and generic OpenAI-compatible profiles currently
+advertise no native-file capability, so WaterLily marks those paths as
+incompatible instead of silently flattening or dropping data.
+
+## Local Python cells
+
+Select a node, choose **Code**, and add a Python cell. Running a cell compiles
+its context path, replays every included Python cell in order in one fresh
+`python3 -I -u` process, and commits the result as a connected execution node.
+Each graph gets a persistent working directory under `.data/python`, so cells
+can exchange ordinary files across runs even though Python variables are
+recreated.
+
+This runner is intentionally local and offline, but it is **not a security
+sandbox**. Code has the same filesystem and network permissions as your user.
+Only run code you trust and inspect model-generated code before executing it.
+Runs stop after 10 seconds and capture at most 256 KiB of combined output.
+
 ## Architecture
 
 The domain and context rules do not depend on React, SQLite, or a provider SDK.
@@ -86,7 +123,7 @@ web ──► api-contract ◄── local service ──► providers
 | `packages/context-engine` | Deterministic multi-head context compilation and hashes    |
 | `packages/workflows`      | Branch, split, merge, generation, and replayable commits   |
 | `packages/interchange`    | Canonical JSON v1, schema, import, clone, merge, export    |
-| `packages/providers`      | Provider-neutral streaming and OpenAI-compatible adapter   |
+| `packages/providers`      | Provider-neutral streaming, Responses, compatible adapters |
 | `packages/database`       | Reviewed SQLite migrations and repositories                |
 | `packages/api-contract`   | Strict browser/service request and stream validation       |
 | `apps/server`             | Loopback persistence and provider boundary                 |
@@ -131,9 +168,13 @@ details.
 
 - This is a single-user local application; authentication, remote sync, and
   real-time collaboration are not implemented.
-- Plain JSON v1 rejects attachment bytes until the checksummed archive extension
-  is specified. Canvas drops currently accept textual files up to 2 MiB each;
-  PDFs and other binary formats require a future extraction pipeline.
+- Plain JSON v1 rejects graphs containing attachment references until the
+  checksummed archive extension is specified. Native attachment bytes therefore
+  remain local and attachment-bearing graphs cannot yet be exported portably.
+- Python execution is host-local rather than container-sandboxed. JavaScript,
+  shell, and richer notebook display outputs are not implemented yet.
+- Generic OpenAI-compatible model capability discovery is not standardized;
+  those profiles currently default to no native-file support.
 - Imported graphs merge into the active workspace. A multi-document workspace
   browser and graph renaming flow are still planned.
 - Browser visual-regression coverage and packaged desktop distribution remain

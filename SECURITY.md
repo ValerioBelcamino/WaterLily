@@ -22,16 +22,26 @@ complete report promptly and coordinate disclosure based on severity.
 - The Node service listens on `127.0.0.1` by default and has no user
   authentication. Exposing it on a LAN or the internet requires a separately
   designed authenticated TLS boundary.
-- Provider credentials exist only in the service process environment. They must
-  never be committed, serialized into graph/workspace data, returned to the
-  browser, included in URLs, or written to normal logs and snapshots.
+- Provider credentials exist only in the service process environment or a local
+  credential file. The default file is outside the repository under the user's
+  data directory and is written atomically with `0600` permissions in a `0700`
+  directory. It is not encrypted at rest and relies on OS-account and filesystem
+  protection. Credentials must never be serialized into graph data, returned to
+  the browser, included in URLs, or written to normal logs.
 - Prompts, model responses, notes, imports, SQLite files, and exports are
   sensitive user data. SQLite is not encrypted at rest by this application.
+- Native attachment blobs are stored with user-only permissions and are sent
+  only when they are included in a compiled flow and the selected model
+  advertises compatible native-file support.
 - Imported JSON is untrusted, strictly validated, and size-limited. Plain JSON
   v1 rejects attachments; future archives and plugins require separate threat
   models.
 - Provider diagnostics are bounded and sanitized. The service does not log
   request bodies or streamed content.
+- The local Python runner is not a sandbox. It strips provider credentials from
+  the child environment and applies time/output limits, but executed code keeps
+  the user's filesystem and network authority. Treat untrusted or
+  model-generated code as arbitrary code execution.
 
 ## Credential hygiene
 

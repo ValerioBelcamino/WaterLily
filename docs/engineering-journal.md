@@ -629,3 +629,77 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   or credential; boolean scans confirm the credential is absent from provider
   events, generation stream items, committed metadata, and persisted workspace.
 - `.env` remains ignored with mode `600`; it is absent from Git's index.
+
+## 2026-08-17 — Context previews, native files, provider profiles, and Python cells
+
+### Implemented
+
+- A selected graph head now previews its exact compiler-derived context in
+  blue. Shift-selected heads preview an ordered multi-head flow, while an
+  in-flight request temporarily replaces the preview with the green pulsing
+  execution flow. Excluded nodes and non-context paths remain visibly inactive.
+- File drops now upload opaque bytes to a permission-restricted local store and
+  put only checksummed attachment descriptors in the graph. The OpenAI
+  Responses adapter sends images as native image inputs and other supported
+  files as native file inputs. Model capability descriptors drive red
+  incompatibility states and block a request before transmission when an
+  unsupported file is included.
+- The loopback service now manages several named OpenAI, DeepSeek, and generic
+  OpenAI-compatible profiles. Credentials are atomically persisted outside the
+  repository with `0700` directory and `0600` file permissions; browser health
+  responses contain only non-secret descriptors. Provider and model selection
+  are explicit toolbar state.
+- Python code and execution are first-class graph node kinds. Running a cell
+  compiles its selected context, replays included code cells in order through a
+  fresh isolated-mode interpreter, and commits bounded stdout/stderr and status
+  as a connected execution node. Per-graph working directories persist files;
+  the child environment is allowlisted and excludes provider credentials.
+- Workspace persistence validation was separated from portable-export
+  validation. Local workspaces accept attachment references, while JSON v1
+  continues to reject them until a checksummed archive format exists.
+
+### Security and product boundaries
+
+- Native attachments are limited to eight files per drop and 10 MiB per file.
+  Stored blobs are integrity-checked on read and are loaded only at the OpenAI
+  provider boundary for an included compatible flow.
+- Stored credentials are plaintext under OS filesystem protection, not browser
+  local storage and not encrypted at rest. An OS keychain backend remains a
+  future hardening option.
+- The Python runner is an offline notebook-like convenience, not a sandbox. It
+  uses no shell, applies a 10-second limit and a 256 KiB combined-output limit,
+  but code retains the user's filesystem and network authority. The UI and
+  security documentation state this before execution.
+- Codex subscription authentication remains deliberately deferred; no browser
+  session, OAuth token, or unofficial subscription mechanism was added.
+
+### Defects caught and corrected during verification
+
+- The first attachment browser run revealed that API workspace validation
+  reused the portable JSON validator and rejected attachment blocks. A reusable
+  view-state validator now preserves strict local validation without weakening
+  the export prohibition.
+- The same browser path exposed a delayed autosave racing a generation commit.
+  Autosave timers now pause for the complete saving/streaming lifecycle, and
+  the end-to-end test asserts that no optimistic-conflict warning appears.
+- The live service test reached a stale exact health fixture after provider
+  descriptors gained models and capabilities. It now asserts the actual
+  server-side public descriptors and separately checks that the credential is
+  absent.
+
+### Verification evidence
+
+- `pnpm check`: all 34 tasks pass. Across nine packages, 427 deterministic tests
+  pass; the three explicitly billable tests skip in normal runs.
+- `pnpm test:coverage`: all 16 tasks and every configured threshold pass. The
+  API contract and context engine are at 100%; providers are 97.81% statements
+  and 96.33% branches; server is 97.94% and 96.61%; web is 97.21% and 90.28%.
+- `pnpm test:e2e`: Chromium passes the complete drop, incompatible-model block,
+  exclusion, running-flow animation, streamed commit, branch, autosave, reload,
+  and restored-selection path.
+- The ignored `.env` live path completed 2/2 provider lifecycle tests and 1/1
+  full application-service test against DeepSeek. Three small requests were
+  made; the key was neither printed nor present in serialized provider events,
+  generation metadata, health responses, or persisted workspaces.
+- `pnpm build`, `pnpm format:check`, `git diff --check`, and the ignored-file
+  audit pass. `.env` remains untracked with mode `600`.
