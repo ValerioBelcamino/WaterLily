@@ -7,13 +7,15 @@ import {
   type GraphSnapshot,
   type NodeRevision,
 } from '@waterlily/domain';
-import { validateGraphDocument } from '@waterlily/interchange';
+import { validateGraphViewState } from '@waterlily/interchange';
 import type { ChatStreamEvent } from '@waterlily/providers';
 
 import { ApiContractError, failContract } from './errors.js';
 import type {
+  CreateProviderProfileRequest,
   GenerationApiRequest,
   GenerationStreamItem,
+  PythonExecutionRequest,
   WorkspaceSnapshot,
   WorkspaceStateV1,
   WorkspaceWriteRequest,
@@ -111,18 +113,10 @@ export function validateWorkspaceState(
     const revision = graph.revisions[node.currentRevisionId] as NodeRevision;
     normalizedSelections[nodeId] = selection(rawSelection, nodeId, revision);
   }
-  const document = validateGraphDocument({
-    exportedAt: graph.updatedAt,
-    exporter: { name: 'WaterLily service', version: '0.0.0' },
-    format: 'waterlily/graph',
-    graph,
-    schemaVersion: 1,
-    view: state.view,
-  });
   return {
     contextSelections: normalizedSelections,
     version: 1,
-    view: document.view,
+    view: validateGraphViewState(graph, state.view),
   };
 }
 
@@ -350,6 +344,95 @@ export function parseGenerationApiRequest(
     request: generationSettings(input.request),
     title: text(input.title, 'title', true),
   };
+}
+
+export function parseCreateProviderProfileRequest(
+  value: unknown,
+): CreateProviderProfileRequest {
+  const input = record(value, 'provider profile request');
+  exactKeys(
+    input,
+    ['apiKey', 'baseUrl', 'label', 'models', 'providerType'],
+    [],
+    'provider profile request',
+  );
+  const providerTypes = new Set(['deepseek', 'openai', 'openai-compatible']);
+  if (
+    typeof input.providerType !== 'string' ||
+    !providerTypes.has(input.providerType)
+  )
+    failContract('providerType is unsupported');
+  const apiKey =
+    input.apiKey === null ? null : (text(input.apiKey, 'apiKey') as string);
+  const baseUrl =
+    input.baseUrl === null ? null : (text(input.baseUrl, 'baseUrl') as string);
+  if (!Array.isArray(input.models)) failContract('models must be an array');
+  const models = input.models.map((model, index) =>
+    text(model, `model ${String(index)}`),
+  ) as string[];
+  if (new Set(models).size !== models.length)
+    failContract('models must be unique');
+  if (input.providerType === 'openai-compatible' && models.length === 0)
+    failContract('OpenAI-compatible profiles require at least one model');
+  if (input.providerType !== 'openai-compatible' && apiKey === null)
+    failContract('This provider requires an API key');
+  if (input.providerType === 'openai-compatible' && baseUrl === null)
+    failContract('OpenAI-compatible profiles require a base URL');
+  if (baseUrl !== null) {
+    let parsed: URL;
+    try {
+      parsed = new URL(baseUrl);
+    } catch {
+      failContract('baseUrl must be a valid URL');
+    }
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      parsed.username.length > 0 ||
+      parsed.password.length > 0 ||
+      parsed.search.length > 0 ||
+      parsed.hash.length > 0
+    )
+      failContract(
+        'baseUrl must use HTTP(S) without credentials, query, or fragment',
+      );
+  }
+  return {
+    apiKey,
+    baseUrl,
+    label: text(input.label, 'label') as string,
+    models,
+    providerType:
+      input.providerType as CreateProviderProfileRequest['providerType'],
+  };
+}
+
+export function parsePythonExecutionRequest(
+  value: unknown,
+): PythonExecutionRequest {
+  const input = record(value, 'Python execution request');
+  exactKeys(input, ['cells', 'graphId'], [], 'Python execution request');
+  const graphId = id(input.graphId, 'Python execution graphId');
+  if (
+    !Array.isArray(input.cells) ||
+    input.cells.length === 0 ||
+    input.cells.length > 64
+  )
+    failContract('Python execution requires between 1 and 64 cells');
+  let totalCharacters = 0;
+  const cells = input.cells.map((value, index) => {
+    const cell = record(value, `Python cell ${String(index)}`);
+    exactKeys(cell, ['nodeId', 'source'], [], 'Python cell');
+    if (typeof cell.source !== 'string' || cell.source.length > 100_000)
+      failContract('Python cell source must be at most 100000 characters');
+    totalCharacters += cell.source.length;
+    return {
+      nodeId: id(cell.nodeId, 'Python cell nodeId'),
+      source: cell.source,
+    };
+  });
+  if (totalCharacters > 500_000)
+    failContract('Python execution source exceeds 500000 characters');
+  return { cells, graphId };
 }
 
 function streamEvent(value: unknown): ChatStreamEvent {

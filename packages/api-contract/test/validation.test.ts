@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { createNode } from '@waterlily/domain';
 
 import {
   ApiContractError,
+  parseCreateProviderProfileRequest,
   parseGenerationApiRequest,
   parseGenerationStreamLine,
+  parsePythonExecutionRequest,
   parseWorkspaceSnapshot,
   parseWorkspaceWriteRequest,
   serializeNdjson,
@@ -35,6 +38,26 @@ describe('workspace contract', () => {
     });
     expect(toWorkspaceSnapshot(request)).toEqual({ graph, state });
     expect(request.graph).not.toBe(graph);
+    expect(parseWorkspaceSnapshot({ graph, state })).toEqual({ graph, state });
+  });
+
+  it('persists attachment blocks without treating them as portable exports', () => {
+    const graph = createNode(graphFixture(), {
+      blocks: [
+        {
+          attachmentId: 'attachment-local',
+          id: 'block-attachment',
+          mediaType: 'application/pdf',
+          name: 'notes.pdf',
+          type: 'attachment',
+        },
+      ],
+      createdAt: NOW,
+      kind: 'attachment',
+      nodeId: 'node-attachment',
+      revisionId: 'revision-attachment',
+    });
+    const state = workspaceState();
     expect(parseWorkspaceSnapshot({ graph, state })).toEqual({ graph, state });
   });
 
@@ -101,6 +124,128 @@ describe('workspace contract', () => {
     },
   ])('rejects invalid workspace writes %#', (value) => {
     expectContractError(() => parseWorkspaceWriteRequest(value));
+  });
+});
+
+describe('local provider profile contract', () => {
+  it('normalizes hosted and OpenAI-compatible profiles', () => {
+    expect(
+      parseCreateProviderProfileRequest({
+        apiKey: 'secret',
+        baseUrl: null,
+        label: 'Personal OpenAI',
+        models: [],
+        providerType: 'openai',
+      }),
+    ).toEqual({
+      apiKey: 'secret',
+      baseUrl: null,
+      label: 'Personal OpenAI',
+      models: [],
+      providerType: 'openai',
+    });
+    expect(
+      parseCreateProviderProfileRequest({
+        apiKey: null,
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        label: 'Local',
+        models: ['qwen3', 'llama3'],
+        providerType: 'openai-compatible',
+      }),
+    ).toMatchObject({ apiKey: null, models: ['qwen3', 'llama3'] });
+  });
+
+  const valid = {
+    apiKey: 'secret',
+    baseUrl: null,
+    label: 'Profile',
+    models: [] as readonly string[],
+    providerType: 'deepseek',
+  };
+
+  it.each([
+    null,
+    {},
+    { ...valid, extra: true },
+    { ...valid, providerType: 'unknown' },
+    { ...valid, apiKey: ' ' },
+    { ...valid, models: 'model' },
+    { ...valid, models: [''] },
+    { ...valid, models: ['same', 'same'] },
+    { ...valid, apiKey: null },
+    {
+      ...valid,
+      apiKey: null,
+      baseUrl: null,
+      providerType: 'openai-compatible',
+    },
+    {
+      ...valid,
+      apiKey: null,
+      baseUrl: null,
+      models: ['m'],
+      providerType: 'openai-compatible',
+    },
+    { ...valid, baseUrl: 'not a URL' },
+    { ...valid, baseUrl: 'file:///tmp/provider' },
+    { ...valid, baseUrl: 'https://user:pass@example.com/v1' },
+    { ...valid, baseUrl: 'https://example.com/v1?key=value' },
+    { ...valid, baseUrl: 'https://example.com/v1#fragment' },
+  ])('rejects an invalid provider profile %#', (value) => {
+    expectContractError(() => parseCreateProviderProfileRequest(value));
+  });
+});
+
+describe('Python execution contract', () => {
+  it('normalizes an ordered list of code cells', () => {
+    expect(
+      parsePythonExecutionRequest({
+        cells: [
+          { nodeId: 'node-cell-1', source: 'value = 2' },
+          { nodeId: 'node-cell-2', source: 'print(value)' },
+        ],
+        graphId: 'graph-study',
+      }),
+    ).toEqual({
+      cells: [
+        { nodeId: 'node-cell-1', source: 'value = 2' },
+        { nodeId: 'node-cell-2', source: 'print(value)' },
+      ],
+      graphId: 'graph-study',
+    });
+  });
+
+  it.each([
+    null,
+    {},
+    { cells: [], graphId: 'graph-study' },
+    {
+      cells: Array.from({ length: 65 }, (_, index) => ({
+        nodeId: `node-${String(index)}`,
+        source: '',
+      })),
+      graphId: 'graph-study',
+    },
+    { cells: [{ nodeId: 'bad id', source: 'x' }], graphId: 'graph-study' },
+    { cells: [{ nodeId: 'node-1', source: 2 }], graphId: 'graph-study' },
+    {
+      cells: [{ nodeId: 'node-1', source: 'x'.repeat(100_001) }],
+      graphId: 'graph-study',
+    },
+    {
+      cells: Array.from({ length: 6 }, (_, index) => ({
+        nodeId: `node-${String(index)}`,
+        source: 'x'.repeat(100_000),
+      })),
+      graphId: 'graph-study',
+    },
+    {
+      cells: [{ extra: true, nodeId: 'node-1', source: 'x' }],
+      graphId: 'graph-study',
+    },
+    { cells: [{ nodeId: 'node-1', source: 'x' }], graphId: 'bad id' },
+  ])('rejects invalid Python input %#', (value) => {
+    expectContractError(() => parsePythonExecutionRequest(value));
   });
 });
 

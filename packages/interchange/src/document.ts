@@ -192,6 +192,61 @@ function normalizeView(
   return { groups: normalizedGroups, positions: normalizedPositions };
 }
 
+export function validateGraphViewState(
+  graph: GraphSnapshot,
+  value: unknown,
+): GraphViewState {
+  validateGraph(graph);
+  if (!isRecord(value)) {
+    failInterchange('INVALID_DOCUMENT', '$.view must be an object');
+  }
+  exactKeys(value, ['groups', 'positions'], '$.view');
+  if (!Array.isArray(value.groups) || !isRecord(value.positions)) {
+    failInterchange(
+      'INVALID_DOCUMENT',
+      'View groups and positions have invalid shapes',
+    );
+  }
+  for (const group of value.groups) {
+    if (!isRecord(group)) {
+      failInterchange('INVALID_DOCUMENT', 'Every view group must be an object');
+    }
+    exactKeys(
+      group,
+      ['collapsed', 'color', 'id', 'nodeIds', 'title'],
+      '$.view.groups[]',
+    );
+    if (
+      typeof group.collapsed !== 'boolean' ||
+      typeof group.color !== 'string' ||
+      typeof group.id !== 'string' ||
+      !Array.isArray(group.nodeIds) ||
+      group.nodeIds.some((nodeId) => typeof nodeId !== 'string') ||
+      typeof group.title !== 'string'
+    ) {
+      failInterchange(
+        'INVALID_DOCUMENT',
+        'View group fields have invalid types',
+      );
+    }
+  }
+  for (const position of Object.values(value.positions)) {
+    if (!isRecord(position)) {
+      failInterchange(
+        'INVALID_DOCUMENT',
+        'Every view position must be an object',
+      );
+    }
+    exactKeys(position, ['x', 'y'], '$.view.positions.*');
+    if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+      failInterchange('INVALID_DOCUMENT', 'View coordinates must be numbers');
+    }
+  }
+  return structuredClone(
+    normalizeView(graph, value as unknown as GraphViewState),
+  );
+}
+
 function validateDocumentValue(value: unknown): GraphDocumentV1 {
   if (!isRecord(value)) {
     failInterchange(
@@ -241,53 +296,7 @@ function validateDocumentValue(value: unknown): GraphDocumentV1 {
     );
   }
   assertNoAttachmentBlocks(graph);
-  if (!isRecord(value.view)) {
-    failInterchange('INVALID_DOCUMENT', '$.view must be an object');
-  }
-  exactKeys(value.view, ['groups', 'positions'], '$.view');
-  if (!Array.isArray(value.view.groups) || !isRecord(value.view.positions)) {
-    failInterchange(
-      'INVALID_DOCUMENT',
-      'View groups and positions have invalid shapes',
-    );
-  }
-  for (const group of value.view.groups) {
-    if (!isRecord(group)) {
-      failInterchange('INVALID_DOCUMENT', 'Every view group must be an object');
-    }
-    exactKeys(
-      group,
-      ['collapsed', 'color', 'id', 'nodeIds', 'title'],
-      '$.view.groups[]',
-    );
-    if (
-      typeof group.collapsed !== 'boolean' ||
-      typeof group.color !== 'string' ||
-      typeof group.id !== 'string' ||
-      !Array.isArray(group.nodeIds) ||
-      group.nodeIds.some((nodeId) => typeof nodeId !== 'string') ||
-      typeof group.title !== 'string'
-    ) {
-      failInterchange(
-        'INVALID_DOCUMENT',
-        'View group fields have invalid types',
-      );
-    }
-  }
-  for (const position of Object.values(value.view.positions)) {
-    if (!isRecord(position)) {
-      failInterchange(
-        'INVALID_DOCUMENT',
-        'Every view position must be an object',
-      );
-    }
-    exactKeys(position, ['x', 'y'], '$.view.positions.*');
-    if (typeof position.x !== 'number' || typeof position.y !== 'number') {
-      failInterchange('INVALID_DOCUMENT', 'View coordinates must be numbers');
-    }
-  }
-  const document = value as unknown as GraphDocumentV1;
-  const view = normalizeView(graph, document.view);
+  const view = validateGraphViewState(graph, value.view);
   const normalized: GraphDocumentV1 = {
     exportedAt: value.exportedAt,
     exporter: {

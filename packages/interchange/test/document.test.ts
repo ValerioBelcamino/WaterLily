@@ -10,6 +10,7 @@ import {
   previewGraphDocument,
   serializeGraphDocument,
   validateGraphDocument,
+  validateGraphViewState,
 } from '../src/index.js';
 import { documentInput, sampleDocument, sampleGraph, time } from './helpers.js';
 
@@ -79,6 +80,9 @@ describe('graph documents', () => {
     expect(() => createGraphDocument({ ...documentInput(), graph })).toThrow(
       expect.objectContaining({ code: 'ATTACHMENTS_REQUIRE_ARCHIVE' }),
     );
+    expect(
+      validateGraphViewState(graph, { groups: [], positions: {} }),
+    ).toEqual({ groups: [], positions: {} });
   });
 
   it('rejects credential-shaped metadata keys without scanning message text', () => {

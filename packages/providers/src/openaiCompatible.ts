@@ -156,8 +156,18 @@ function assertRequest(providerId: string, request: ChatRequest): void {
   }
 }
 
-function messageBody(message: ChatMessage): Record<string, string> {
-  const body: Record<string, string> = {
+function messageBody(
+  providerId: string,
+  message: ChatMessage,
+): Record<string, JsonValue> {
+  if (typeof message.content !== 'string') {
+    throw new ProviderError(
+      'INVALID_REQUEST',
+      'This OpenAI-compatible chat endpoint does not support native file inputs',
+      { providerId },
+    );
+  }
+  const body: Record<string, JsonValue> = {
     content: message.content,
     role: message.role,
   };
@@ -167,12 +177,15 @@ function messageBody(message: ChatMessage): Record<string, string> {
 }
 
 function requestBody(
+  providerId: string,
   request: ChatRequest,
   includeUsage: boolean,
 ): Record<string, JsonValue> {
   const body: Record<string, JsonValue> = {
     ...request.providerOptions,
-    messages: request.messages.map(messageBody),
+    messages: request.messages.map((message) =>
+      messageBody(providerId, message),
+    ),
     model: request.model,
     stream: true,
   };
@@ -478,7 +491,7 @@ class OpenAICompatibleProvider implements ChatProvider {
     let response: Response;
     try {
       response = await this.#fetch(new URL(this.#requestPath, this.#baseUrl), {
-        body: JSON.stringify(requestBody(request, this.#includeUsage)),
+        body: JSON.stringify(requestBody(this.id, request, this.#includeUsage)),
         headers,
         method: 'POST',
         ...(options.signal === undefined ? {} : { signal: options.signal }),

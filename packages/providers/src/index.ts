@@ -9,8 +9,15 @@ export {
   type DeepSeekProviderConfig,
   type OpenAICompatibleProviderConfig,
 } from './openaiCompatible.js';
+export {
+  createOpenAIResponsesProvider,
+  type OpenAIResponsesProviderConfig,
+} from './openaiResponses.js';
 export { ServerSentEventDecoder } from './sse.js';
 export type {
+  AttachmentChatContentPart,
+  AttachmentLoader,
+  ChatContentPart,
   ChatMessage,
   ChatProvider,
   ChatRequest,
@@ -19,11 +26,13 @@ export type {
   FinishReason,
   JsonPrimitive,
   JsonValue,
+  LoadedAttachment,
   ReasoningDeltaEvent,
   ResponseEndEvent,
   ResponseStartEvent,
   StandardChatMessage,
   StreamChatOptions,
+  TextChatContentPart,
   TextDeltaEvent,
   ToolChatMessage,
   UsageEvent,

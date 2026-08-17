@@ -348,7 +348,7 @@ describe('generation workflows', () => {
     );
   });
 
-  it('rejects attachment blocks and tool messages without call ids', async () => {
+  it('serializes native attachments and rejects tool messages without call ids', async () => {
     const withNode = (
       graph: GraphSnapshot,
       role: 'tool' | null,
@@ -380,17 +380,30 @@ describe('generation workflows', () => {
         role,
       });
 
-    for (const graph of [
-      withNode(linearGraph(), null, true),
-      withNode(linearGraph(), 'tool', false),
-    ]) {
-      const compiled = await compileContext({
-        graph,
-        heads: [{ label: 'Special', nodeId: 'node-special', slot: 0 }],
-      });
-      expect(() => serializeCompiledContext(compiled, { model: 'm' })).toThrow(
-        expect.objectContaining({ code: 'UNSUPPORTED_CONTENT' }),
-      );
-    }
+    const attachmentContext = await compileContext({
+      graph: withNode(linearGraph(), null, true),
+      heads: [{ label: 'Special', nodeId: 'node-special', slot: 0 }],
+    });
+    expect(
+      serializeCompiledContext(attachmentContext, {
+        model: 'm',
+      }).request.messages.at(-1)?.content,
+    ).toEqual([
+      { text: '[attachment]', type: 'text' },
+      {
+        attachmentId: 'asset-1',
+        mediaType: 'image/png',
+        name: null,
+        type: 'attachment',
+      },
+    ]);
+
+    const toolContext = await compileContext({
+      graph: withNode(linearGraph(), 'tool', false),
+      heads: [{ label: 'Special', nodeId: 'node-special', slot: 0 }],
+    });
+    expect(() => serializeCompiledContext(toolContext, { model: 'm' })).toThrow(
+      expect.objectContaining({ code: 'UNSUPPORTED_CONTENT' }),
+    );
   });
 });

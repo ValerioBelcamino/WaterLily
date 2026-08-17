@@ -2,8 +2,22 @@ export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue =
   JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
+export interface TextChatContentPart {
+  readonly text: string;
+  readonly type: 'text';
+}
+
+export interface AttachmentChatContentPart {
+  readonly attachmentId: string;
+  readonly mediaType: string;
+  readonly name: string | null;
+  readonly type: 'attachment';
+}
+
+export type ChatContentPart = AttachmentChatContentPart | TextChatContentPart;
+
 interface BaseChatMessage {
-  readonly content: string;
+  readonly content: string | readonly ChatContentPart[];
   readonly name?: string;
 }
 
@@ -80,6 +94,16 @@ export interface ChatProvider {
     options?: StreamChatOptions,
   ): AsyncIterable<ChatStreamEvent>;
 }
+
+export interface LoadedAttachment {
+  readonly bytes: Uint8Array;
+  readonly mediaType: string;
+  readonly name: string;
+}
+
+export type AttachmentLoader = (
+  attachmentId: string,
+) => Promise<LoadedAttachment>;
 
 export type FetchImplementation = (
   input: string | URL,

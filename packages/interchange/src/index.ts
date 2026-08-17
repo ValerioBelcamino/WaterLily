@@ -6,6 +6,7 @@ export {
   previewGraphDocument,
   serializeGraphDocument,
   validateGraphDocument,
+  validateGraphViewState,
 } from './document.js';
 export {
   INTERCHANGE_ERROR_CODES,

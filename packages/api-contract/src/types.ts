@@ -34,11 +34,62 @@ export interface GenerationApiRequest {
   readonly title: string | null;
 }
 
+export interface ModelCapabilities {
+  readonly inputExtensions: readonly string[];
+  readonly inputMimeTypes: readonly string[];
+  readonly maxFileBytes: number | null;
+  readonly nativeFiles: boolean;
+}
+
+export interface ModelDescriptor {
+  readonly capabilities: ModelCapabilities;
+  readonly id: string;
+  readonly name: string;
+}
+
 export interface ProviderDescriptor {
   readonly available: boolean;
   readonly defaultModel: string;
   readonly id: string;
+  readonly models: readonly ModelDescriptor[];
   readonly name: string;
+  readonly providerType: 'deepseek' | 'openai' | 'openai-compatible';
+  readonly source: 'environment' | 'stored';
+}
+
+export interface CreateProviderProfileRequest {
+  readonly apiKey: string | null;
+  readonly baseUrl: string | null;
+  readonly label: string;
+  readonly models: readonly string[];
+  readonly providerType: ProviderDescriptor['providerType'];
+}
+
+export interface AttachmentDescriptor {
+  readonly id: string;
+  readonly mediaType: string;
+  readonly name: string;
+  readonly sha256: string;
+  readonly size: number;
+}
+
+export interface PythonCodeCell {
+  readonly nodeId: string;
+  readonly source: string;
+}
+
+export interface PythonExecutionRequest {
+  readonly cells: readonly PythonCodeCell[];
+  readonly graphId: string;
+}
+
+export interface PythonExecutionResult {
+  readonly durationMilliseconds: number;
+  readonly exitCode: number | null;
+  readonly stderr: string;
+  readonly stdout: string;
+  readonly timedOut: boolean;
+  readonly truncated: boolean;
 }
 
 export type GenerationStreamItem =

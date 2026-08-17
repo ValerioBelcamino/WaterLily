@@ -4,6 +4,8 @@ export const NODE_KINDS = [
   'excerpt',
   'summary',
   'attachment',
+  'code',
+  'execution',
 ] as const;
 
 export type NodeKind = (typeof NODE_KINDS)[number];

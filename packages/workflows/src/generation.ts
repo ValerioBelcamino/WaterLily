@@ -10,6 +10,7 @@ import {
   type JsonValue,
 } from '@waterlily/domain';
 import type {
+  ChatContentPart,
   ChatMessage,
   ChatRequest,
   ChatStreamEvent,
@@ -24,26 +25,51 @@ import type {
   SerializedProviderRequest,
 } from './types.js';
 
-function itemText(item: CompiledContextItem): string {
-  const content = item.blocks
-    .map((block) => {
-      if (block.type === 'attachment') {
-        failWorkflow(
-          'UNSUPPORTED_CONTENT',
-          'The initial chat serializer cannot send attachment blocks',
-          { blockId: block.id, nodeId: item.nodeId },
-        );
-      }
-      return block.text;
-    })
+function itemContent(
+  item: CompiledContextItem,
+): string | readonly ChatContentPart[] {
+  const hasAttachment = item.blocks.some(
+    (block) => block.type === 'attachment',
+  );
+  const text = item.blocks
+    .flatMap((block) => (block.type === 'text' ? [block.text] : []))
     .join('\n\n');
-  if (item.role !== null) return content;
+  if (!hasAttachment) {
+    if (item.role !== null) return text;
+    const title = item.title === null ? '' : `: ${item.title}`;
+    return `[${item.nodeKind}${title}]\n${text}`;
+  }
+  if (item.role === 'tool') {
+    failWorkflow(
+      'UNSUPPORTED_CONTENT',
+      'Tool context cannot contain native attachments',
+      { nodeId: item.nodeId },
+    );
+  }
+  const content: ChatContentPart[] = [];
   const title = item.title === null ? '' : `: ${item.title}`;
-  return `[${item.nodeKind}${title}]\n${content}`;
+  if (item.role === null)
+    content.push({
+      text: `[${item.nodeKind}${title}]`,
+      type: 'text',
+    });
+  for (const block of item.blocks) {
+    content.push(
+      block.type === 'text'
+        ? { text: block.text, type: 'text' }
+        : {
+            attachmentId: block.attachmentId,
+            mediaType: block.mediaType,
+            name: block.name,
+            type: 'attachment',
+          },
+    );
+  }
+  return content;
 }
 
 function itemMessage(item: CompiledContextItem): ChatMessage {
-  const content = itemText(item);
+  const content = itemContent(item);
   if (item.role === 'tool') {
     const toolCallId = item.metadata.toolCallId;
     if (typeof toolCallId !== 'string' || toolCallId.trim().length === 0) {
