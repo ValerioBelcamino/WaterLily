@@ -21,6 +21,9 @@ const result = spawnSync(
   {
     cwd: workspaceRoot,
     env: { ...process.env, CI: process.env.CI ?? 'true' },
+    // Windows command shims are .cmd files and require cmd.exe. Every argument
+    // here is an internal build value; no user input reaches this shell.
+    shell: process.platform === 'win32',
     stdio: 'inherit',
   },
 );
