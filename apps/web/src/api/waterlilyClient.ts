@@ -25,6 +25,11 @@ export class WaterLilyApiError extends Error {
 
 type FetchClient = typeof globalThis.fetch;
 
+export interface DownloadedAttachment {
+  readonly bytes: Uint8Array;
+  readonly descriptor: AttachmentDescriptor;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -309,6 +314,65 @@ export class WaterLilyClient {
       method: 'POST',
     });
     return attachmentDescriptor(await checkedJson(response));
+  }
+
+  public async downloadAttachment(
+    attachmentId: string,
+  ): Promise<DownloadedAttachment> {
+    const response = await this.#fetch(
+      `/api/attachments/${encodeURIComponent(attachmentId)}`,
+      { headers: { Accept: 'application/octet-stream' } },
+    );
+    if (!response.ok)
+      throw apiError(await responseJson(response), response.status);
+    const encodedName = response.headers.get('x-waterlily-filename');
+    const sha256 = response.headers.get('x-waterlily-sha256');
+    const mediaType = response.headers.get('content-type')?.split(';', 1)[0];
+    const declaredSize = Number(response.headers.get('content-length'));
+    if (
+      encodedName === null ||
+      sha256 === null ||
+      mediaType === undefined ||
+      mediaType.length === 0 ||
+      !Number.isSafeInteger(declaredSize) ||
+      declaredSize < 0
+    )
+      throw new WaterLilyApiError(
+        'INVALID_RESPONSE',
+        'The local service returned invalid attachment headers',
+        response.status,
+      );
+    let name: string;
+    try {
+      name = decodeURIComponent(encodedName);
+    } catch (cause) {
+      throw new WaterLilyApiError(
+        'INVALID_RESPONSE',
+        'The local service returned an invalid attachment name',
+        response.status,
+        { cause },
+      );
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return {
+      bytes,
+      descriptor: attachmentDescriptor({
+        id: attachmentId,
+        mediaType,
+        name,
+        sha256,
+        size: declaredSize,
+      }),
+    };
+  }
+
+  public async removeAttachment(attachmentId: string): Promise<void> {
+    const response = await this.#fetch(
+      `/api/attachments/${encodeURIComponent(attachmentId)}`,
+      { method: 'DELETE' },
+    );
+    if (!response.ok)
+      throw apiError(await responseJson(response), response.status);
   }
 
   public async executePython(

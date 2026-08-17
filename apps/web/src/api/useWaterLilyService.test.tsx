@@ -4,6 +4,12 @@ import type {
   ProviderDescriptor,
   WorkspaceSnapshot,
 } from '@waterlily/api-contract';
+import { createNode } from '@waterlily/domain';
+import {
+  createWaterLilyArchive,
+  parseWaterLilyArchive,
+  sha256Bytes,
+} from '@waterlily/interchange';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -59,6 +65,9 @@ function createClient(overrides: Partial<ServiceClient> = {}): ServiceClient {
     createProviderProfile: vi.fn<
       NonNullable<ServiceClient['createProviderProfile']>
     >(() => Promise.resolve(providers[0] as ProviderDescriptor)),
+    downloadAttachment: vi.fn<NonNullable<ServiceClient['downloadAttachment']>>(
+      () => Promise.reject(new Error('Unexpected attachment download')),
+    ),
     executePython: vi.fn<NonNullable<ServiceClient['executePython']>>(() =>
       Promise.resolve({
         durationMilliseconds: 4,
@@ -77,6 +86,9 @@ function createClient(overrides: Partial<ServiceClient> = {}): ServiceClient {
     removeProviderProfile: vi.fn<
       NonNullable<ServiceClient['removeProviderProfile']>
     >(() => Promise.resolve()),
+    removeAttachment: vi.fn<NonNullable<ServiceClient['removeAttachment']>>(
+      () => Promise.resolve(),
+    ),
     save: vi.fn<ServiceClient['save']>((snapshot) => Promise.resolve(snapshot)),
     uploadAttachment: vi.fn<NonNullable<ServiceClient['uploadAttachment']>>(
       (file) =>
@@ -90,6 +102,58 @@ function createClient(overrides: Partial<ServiceClient> = {}): ServiceClient {
     ),
     ...overrides,
   };
+}
+
+async function attachmentArchive(): Promise<
+  Awaited<ReturnType<typeof createWaterLilyArchive>>
+> {
+  const bytes = new TextEncoder().encode('portable paper');
+  const sha256 = await sha256Bytes(bytes);
+  const graph = createNode(structuredClone(sampleGraph), {
+    blocks: [
+      {
+        attachmentId: 'attachment-archive',
+        id: 'block-archive-file',
+        mediaType: 'text/plain',
+        name: 'paper.txt',
+        type: 'attachment',
+      },
+    ],
+    createdAt: '2026-08-17T12:00:00.000Z',
+    kind: 'attachment',
+    nodeId: 'node-archive-file',
+    revisionId: 'revision-archive-file',
+    title: 'Archive paper',
+  });
+  return createWaterLilyArchive({
+    attachments: [
+      {
+        bytes,
+        descriptor: {
+          id: 'attachment-archive',
+          mediaType: 'text/plain',
+          name: 'paper.txt',
+          sha256,
+          size: bytes.byteLength,
+        },
+      },
+    ],
+    exportedAt: '2026-08-17T12:01:00.000Z',
+    exporter: { name: 'Test', version: '1' },
+    workspace: {
+      graph,
+      state: {
+        contextSelections: {
+          'node-archive-file': { mode: 'excluded' },
+        },
+        version: 1,
+        view: {
+          groups: [],
+          positions: { 'node-archive-file': { x: 22, y: 33 } },
+        },
+      },
+    },
+  });
 }
 
 describe('useWaterLilyService', () => {
@@ -427,6 +491,197 @@ describe('useWaterLilyService', () => {
     expect(result.current.selectedModelId).toBeNull();
   });
 
+  it('exports a portable archive with the complete workspace state', async () => {
+    const client = createClient();
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+
+    let exported:
+      Awaited<ReturnType<typeof result.current.exportArchive>> | undefined;
+    await act(async () => {
+      exported = await result.current.exportArchive();
+    });
+    if (exported === undefined) throw new Error('Archive export did not run');
+    const parsed = await parseWaterLilyArchive(exported.bytes);
+    expect(parsed.workspace.state.contextSelections).toEqual({
+      'node-note': { mode: 'excluded' },
+    });
+    expect(parsed.workspace.graph).toEqual(sampleGraph);
+    expect(parsed.attachments).toEqual([]);
+    expect(client.downloadAttachment).not.toHaveBeenCalled();
+    expect(result.current.archiveStatus).toBe('idle');
+  });
+
+  it('downloads every referenced attachment into the exported archive', async () => {
+    const bytes = new TextEncoder().encode('export me');
+    const sha256 = await sha256Bytes(bytes);
+    const downloadAttachment = vi.fn<
+      NonNullable<ServiceClient['downloadAttachment']>
+    >(() =>
+      Promise.resolve({
+        bytes,
+        descriptor: {
+          id: 'attachment-export',
+          mediaType: 'text/plain',
+          name: 'export.txt',
+          sha256,
+          size: bytes.byteLength,
+        },
+      }),
+    );
+    const client = createClient({ downloadAttachment });
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+    act(() => {
+      useWaterLilyStore.getState().addFileContexts({
+        createdAt: '2026-08-17T12:00:00.000Z',
+        files: [
+          {
+            attachment: {
+              id: 'attachment-export',
+              mediaType: 'text/plain',
+              name: 'export.txt',
+              sha256,
+              size: bytes.byteLength,
+            },
+            blockId: 'block-export',
+            edgeId: null,
+            file: {
+              file: new File([bytes], 'export.txt', { type: 'text/plain' }),
+              lastModified: 1,
+              mediaType: 'text/plain',
+              name: 'export.txt',
+              size: bytes.byteLength,
+            },
+            nodeId: 'node-export',
+            position: { x: 1, y: 2 },
+            revisionId: 'revision-export',
+          },
+        ],
+        targetNodeId: null,
+      });
+    });
+
+    const exported = await result.current.exportArchive();
+    const parsed = await parseWaterLilyArchive(exported.bytes);
+    expect(downloadAttachment).toHaveBeenCalledWith('attachment-export');
+    expect(parsed.attachments[0]?.descriptor.name).toBe('export.txt');
+  });
+
+  it('imports an attachment-free archive without attachment service calls', async () => {
+    const archive = await createWaterLilyArchive({
+      attachments: [],
+      exportedAt: '2026-08-17T12:01:00.000Z',
+      exporter: { name: 'Test', version: '1' },
+      workspace: workspace(),
+    });
+    const client = createClient();
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+    vi.mocked(client.save).mockClear();
+
+    await expect(result.current.importArchive(archive.bytes)).resolves.toEqual({
+      attachmentCount: 0,
+      nodeCount: 7,
+    });
+    expect(client.uploadAttachment).not.toHaveBeenCalled();
+    expect(client.removeAttachment).not.toHaveBeenCalled();
+    expect(client.save).toHaveBeenCalledOnce();
+  });
+
+  it('restores archive attachments, remaps state, and commits one merged workspace', async () => {
+    const archive = await attachmentArchive();
+    const uploadAttachment = vi.fn<
+      NonNullable<ServiceClient['uploadAttachment']>
+    >(async (file) => ({
+      id: 'attachment-restored',
+      mediaType: file.type,
+      name: file.name,
+      sha256: await sha256Bytes(new Uint8Array(await file.arrayBuffer())),
+      size: file.size,
+    }));
+    const client = createClient({ uploadAttachment });
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+    vi.mocked(client.save).mockClear();
+
+    let summary:
+      Awaited<ReturnType<typeof result.current.importArchive>> | undefined;
+    await act(async () => {
+      summary = await result.current.importArchive(archive.bytes);
+    });
+
+    expect(summary).toEqual({ attachmentCount: 1, nodeCount: 8 });
+    expect(uploadAttachment).toHaveBeenCalledOnce();
+    expect(client.save).toHaveBeenCalledOnce();
+    const state = useWaterLilyStore.getState();
+    expect(Object.keys(state.graph.nodes)).toHaveLength(15);
+    const importedNode = Object.values(state.graph.nodes).find(
+      (node) => node.title === 'Archive paper',
+    );
+    expect(importedNode).toBeDefined();
+    const importedRevision =
+      state.graph.revisions[importedNode?.currentRevisionId ?? ''];
+    expect(importedRevision?.blocks[0]).toMatchObject({
+      attachmentId: 'attachment-restored',
+      name: 'paper.txt',
+    });
+    expect(state.contextSelections[importedNode?.id ?? '']).toEqual({
+      mode: 'excluded',
+    });
+    expect(state.positions[importedNode?.id ?? '']).toEqual({ x: 22, y: 33 });
+    expect(client.removeAttachment).not.toHaveBeenCalled();
+  });
+
+  it('rolls back uploaded attachment bytes when archive persistence fails', async () => {
+    const archive = await attachmentArchive();
+    const save = vi.fn<ServiceClient['save']>(() =>
+      Promise.reject(new Error('Database unavailable')),
+    );
+    const client = createClient({ save });
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+
+    await expect(
+      act(async () => result.current.importArchive(archive.bytes)),
+    ).rejects.toThrow('Database unavailable');
+    expect(client.removeAttachment).toHaveBeenCalledWith('attachment-uploaded');
+    expect(Object.keys(useWaterLilyStore.getState().graph.nodes)).toHaveLength(
+      7,
+    );
+    expect(result.current.archiveStatus).toBe('idle');
+  });
+
   it('clears provider selection when the selected stored profile has no fallback', async () => {
     const stored: ProviderDescriptor = {
       ...(providers[0] as ProviderDescriptor),
@@ -643,13 +898,17 @@ describe('useWaterLilyService', () => {
     const full = createClient();
     const {
       createProviderProfile: _create,
+      downloadAttachment: _download,
       executePython: _execute,
+      removeAttachment: _removeAttachment,
       removeProviderProfile: _remove,
       uploadAttachment: _upload,
       ...client
     } = full;
     void _create;
+    void _download;
     void _execute;
+    void _removeAttachment;
     void _remove;
     void _upload;
     const { result } = renderHook(() =>
@@ -675,6 +934,9 @@ describe('useWaterLilyService', () => {
     await expect(
       result.current.uploadAttachment(new File(['x'], 'x.txt')),
     ).rejects.toThrow('storage is unavailable');
+    await expect(result.current.exportArchive()).rejects.toThrow(
+      'export is unavailable',
+    );
 
     await act(async () => {
       await result.current.executePython('node-answer');

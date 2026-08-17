@@ -7,6 +7,13 @@ import type {
   WorkspaceSnapshot,
 } from '@waterlily/api-contract';
 import { compileContext } from '@waterlily/context-engine';
+import type { GraphSnapshot, NodeRevision } from '@waterlily/domain';
+import {
+  createWaterLilyArchive,
+  mergeGraphSnapshot,
+  parseWaterLilyArchive,
+  type ExportedWaterLilyArchive,
+} from '@waterlily/interchange';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -21,6 +28,12 @@ import { WaterLilyApiError, WaterLilyClient } from './waterlilyClient';
 
 export type ServiceStatus = 'connecting' | 'disabled' | 'offline' | 'online';
 export type GenerationStatus = 'idle' | 'saving' | 'streaming';
+export type ArchiveStatus = 'exporting' | 'idle' | 'importing';
+
+export interface ArchiveImportSummary {
+  readonly attachmentCount: number;
+  readonly nodeCount: number;
+}
 
 export interface GenerationViewState {
   readonly error: string | null;
@@ -32,6 +45,8 @@ export interface GenerationViewState {
 
 interface ServiceClient {
   createProviderProfile?: WaterLilyClient['createProviderProfile'];
+  downloadAttachment?: WaterLilyClient['downloadAttachment'];
+  removeAttachment?: WaterLilyClient['removeAttachment'];
   removeProviderProfile?: WaterLilyClient['removeProviderProfile'];
   uploadAttachment?: WaterLilyClient['uploadAttachment'];
   executePython?: WaterLilyClient['executePython'];
@@ -49,14 +64,17 @@ export interface UseWaterLilyServiceOptions {
 
 export interface WaterLilyServiceState {
   readonly activeFlow: ActiveContextFlow | null;
+  readonly archiveStatus: ArchiveStatus;
   readonly cancel: () => void;
   readonly createProviderProfile: (
     input: CreateProviderProfileRequest,
   ) => Promise<void>;
   readonly executePython: (headNodeId: string) => Promise<void>;
+  readonly exportArchive: () => Promise<ExportedWaterLilyArchive>;
   readonly execution: PythonExecutionViewState;
   readonly generate: (headNodeIds: readonly string[]) => Promise<void>;
   readonly generation: GenerationViewState;
+  readonly importArchive: (bytes: Uint8Array) => Promise<ArchiveImportSummary>;
   readonly providers: readonly ProviderDescriptor[];
   readonly removeProviderProfile: (profileId: string) => Promise<void>;
   readonly selectedModelId: string | null;
@@ -94,6 +112,47 @@ function errorMessage(error: unknown): string {
   return 'The local service request failed.';
 }
 
+function attachmentIds(graph: GraphSnapshot): readonly string[] {
+  return [
+    ...new Set(
+      Object.values(graph.revisions).flatMap((revision) =>
+        revision.blocks.flatMap((block) =>
+          block.type === 'attachment' ? [block.attachmentId] : [],
+        ),
+      ),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+}
+
+function replaceAttachmentIds(
+  graph: GraphSnapshot,
+  attachments: ReadonlyMap<string, AttachmentDescriptor>,
+): GraphSnapshot {
+  const revisions = Object.fromEntries(
+    Object.entries(graph.revisions).map(([revisionId, revision]) => [
+      revisionId,
+      {
+        ...revision,
+        blocks: revision.blocks.map((block) => {
+          if (block.type !== 'attachment') return block;
+          const replacement = attachments.get(block.attachmentId);
+          if (replacement === undefined)
+            throw new Error(
+              `Archive attachment ${block.attachmentId} was not restored.`,
+            );
+          return {
+            ...block,
+            attachmentId: replacement.id,
+            mediaType: replacement.mediaType,
+            name: replacement.name,
+          };
+        }),
+      } satisfies NodeRevision,
+    ]),
+  );
+  return { ...graph, revisions };
+}
+
 export function useWaterLilyService(
   options: UseWaterLilyServiceOptions = {},
 ): WaterLilyServiceState {
@@ -118,6 +177,7 @@ export function useWaterLilyService(
   const [execution, setExecution] =
     useState<PythonExecutionViewState>(IDLE_EXECUTION);
   const [activeFlow, setActiveFlow] = useState<ActiveContextFlow | null>(null);
+  const [archiveStatus, setArchiveStatus] = useState<ArchiveStatus>('idle');
   const [providers, setProviders] = useState<readonly ProviderDescriptor[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
     null,
@@ -128,6 +188,9 @@ export function useWaterLilyService(
     enabled ? 'connecting' : 'disabled',
   );
   const abortRef = useRef<AbortController | null>(null);
+  const autosaveTimeoutRef = useRef<ReturnType<
+    typeof globalThis.setTimeout
+  > | null>(null);
   const executionAbortRef = useRef<AbortController | null>(null);
   const initializedRef = useRef(false);
   const lastSavedUpdatedAtRef = useRef<string | null>(null);
@@ -155,6 +218,12 @@ export function useWaterLilyService(
     },
     [client],
   );
+
+  const cancelScheduledAutosave = useCallback((): void => {
+    if (autosaveTimeoutRef.current === null) return;
+    globalThis.clearTimeout(autosaveTimeoutRef.current);
+    autosaveTimeoutRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
@@ -201,6 +270,7 @@ export function useWaterLilyService(
       !enabled ||
       status !== 'online' ||
       generation.status !== 'idle' ||
+      archiveStatus !== 'idle' ||
       !initializedRef.current
     )
       return;
@@ -209,15 +279,18 @@ export function useWaterLilyService(
       return;
     }
     const snapshot = workspace;
-    const timeout = globalThis.setTimeout(() => {
+    autosaveTimeoutRef.current = globalThis.setTimeout(() => {
+      autosaveTimeoutRef.current = null;
       saveQueueRef.current = saveQueueRef.current
         .then(() => persist(snapshot))
         .catch((error: unknown) => {
           setServiceError(errorMessage(error));
         });
     }, saveDelayMilliseconds);
-    return () => globalThis.clearTimeout(timeout);
+    return cancelScheduledAutosave;
   }, [
+    archiveStatus,
+    cancelScheduledAutosave,
     enabled,
     generation.status,
     persist,
@@ -374,6 +447,114 @@ export function useWaterLilyService(
     [client],
   );
 
+  const exportArchive =
+    useCallback(async (): Promise<ExportedWaterLilyArchive> => {
+      if (archiveStatus !== 'idle')
+        throw new Error('Another archive operation is already running.');
+      if (client.downloadAttachment === undefined)
+        throw new Error('Attachment export is unavailable.');
+      const downloadAttachment = client.downloadAttachment.bind(client);
+      setArchiveStatus('exporting');
+      try {
+        const snapshot = workspaceRef.current;
+        const attachments = await Promise.all(
+          attachmentIds(snapshot.graph).map((id) => downloadAttachment(id)),
+        );
+        return await createWaterLilyArchive({
+          attachments,
+          exportedAt: new Date().toISOString(),
+          exporter: { name: 'WaterLily', version: '0.0.0' },
+          workspace: snapshot,
+        });
+      } finally {
+        setArchiveStatus('idle');
+      }
+    }, [archiveStatus, client]);
+
+  const importArchive = useCallback(
+    async (bytes: Uint8Array): Promise<ArchiveImportSummary> => {
+      if (archiveStatus !== 'idle')
+        throw new Error('Another archive operation is already running.');
+      setArchiveStatus('importing');
+      cancelScheduledAutosave();
+      const uploadedIds: string[] = [];
+      try {
+        const parsed = await parseWaterLilyArchive(bytes);
+        const upload = client.uploadAttachment?.bind(client);
+        const remove = client.removeAttachment?.bind(client);
+        if (
+          parsed.attachments.length > 0 &&
+          (upload === undefined || remove === undefined)
+        )
+          throw new Error('Transactional attachment import is unavailable.');
+        const restoredAttachments = new Map<string, AttachmentDescriptor>();
+        for (const attachment of parsed.attachments) {
+          const file = new File(
+            [attachment.bytes.slice().buffer],
+            attachment.descriptor.name,
+            { type: attachment.descriptor.mediaType },
+          );
+          const restored = await upload?.(file);
+          if (restored === undefined)
+            throw new Error('Attachment storage is unavailable.');
+          uploadedIds.push(restored.id);
+          restoredAttachments.set(attachment.descriptor.id, restored);
+        }
+        const sourceGraph = replaceAttachmentIds(
+          parsed.workspace.graph,
+          restoredAttachments,
+        );
+        const current = workspaceRef.current;
+        const merged = mergeGraphSnapshot({
+          remapId: (kind) => createPortableId(`import-${kind}`),
+          sourceGraph,
+          sourceView: parsed.workspace.state.view,
+          targetGraph: current.graph,
+          targetView: current.state.view,
+        });
+        const importedSelections = Object.fromEntries(
+          Object.entries(parsed.workspace.state.contextSelections).map(
+            ([nodeId, selection]) => {
+              const remappedNodeId = merged.mapping.nodes[nodeId];
+              if (remappedNodeId === undefined)
+                throw new Error('Archive context mapping is incomplete.');
+              return [remappedNodeId, selection];
+            },
+          ),
+        );
+        const next: WorkspaceSnapshot = {
+          graph: merged.graph,
+          state: {
+            contextSelections: {
+              ...current.state.contextSelections,
+              ...importedSelections,
+            },
+            version: 1,
+            view: merged.view,
+          },
+        };
+        await saveQueueRef.current.catch(() => undefined);
+        await persist(next);
+        skipAutosaveRef.current = true;
+        replaceWorkspace(next);
+        return {
+          attachmentCount: parsed.attachments.length,
+          nodeCount: Object.keys(parsed.workspace.graph.nodes).length,
+        };
+      } catch (cause) {
+        const removeAttachment = client.removeAttachment?.bind(client);
+        if (removeAttachment !== undefined)
+          await Promise.allSettled(
+            uploadedIds.map((id) => removeAttachment(id)),
+          );
+        throw cause;
+      } finally {
+        setArchiveStatus('idle');
+      }
+    },
+    [archiveStatus, cancelScheduledAutosave, client, persist, replaceWorkspace],
+  );
+
   const generate = useCallback(
     async (headNodeIds: readonly string[]): Promise<void> => {
       if (generation.status !== 'idle') return;
@@ -401,6 +582,7 @@ export function useWaterLilyService(
       }
       const controller = new AbortController();
       abortRef.current = controller;
+      cancelScheduledAutosave();
       setGeneration({ ...IDLE_GENERATION, status: 'saving' });
       try {
         const generationWorkspace = workspaceRef.current;
@@ -488,6 +670,7 @@ export function useWaterLilyService(
     },
     [
       client,
+      cancelScheduledAutosave,
       generation.status,
       persist,
       providers,
@@ -499,12 +682,15 @@ export function useWaterLilyService(
 
   return {
     activeFlow,
+    archiveStatus,
     cancel,
     createProviderProfile,
     executePython,
     execution,
+    exportArchive,
     generate,
     generation,
+    importArchive,
     providers,
     removeProviderProfile,
     selectedModelId,

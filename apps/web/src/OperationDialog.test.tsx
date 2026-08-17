@@ -155,7 +155,7 @@ describe('OperationDialog', () => {
     Object.defineProperty(file, 'text', {
       value: vi.fn().mockResolvedValue('{"schemaVersion":2}'),
     });
-    await user.upload(screen.getByLabelText(/Choose JSON file/), file);
+    await user.upload(screen.getByLabelText(/Choose .waterlily or/), file);
     expect(
       await screen.findByDisplayValue('{"schemaVersion":2}'),
     ).toBeVisible();
@@ -182,7 +182,60 @@ describe('OperationDialog', () => {
     Object.defineProperty(file, 'text', {
       value: () => Promise.reject(new Error('browser detail')),
     });
-    await user.upload(screen.getByLabelText(/Choose JSON file/), file);
+    await user.upload(screen.getByLabelText(/Choose .waterlily or/), file);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'selected file could not be read',
+    );
+  });
+
+  it('loads a portable WaterLily archive as binary data', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <OperationDialog
+        kind="import"
+        onClose={() => undefined}
+        onSubmit={onSubmit}
+        selectedCount={0}
+        selectedTitle="No selection"
+      />,
+    );
+    const file = new File(['archive'], 'study.waterlily', {
+      type: 'application/vnd.waterlily+zip',
+    });
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer),
+    });
+    await user.upload(screen.getByLabelText(/Choose .waterlily or/), file);
+    expect(
+      await screen.findByText(/Ready to import study.waterlily/),
+    ).toBeVisible();
+    expect(screen.getByLabelText('Legacy graph JSON')).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Validate & import' }));
+    expect(onSubmit).toHaveBeenCalledOnce();
+    const submission = onSubmit.mock.calls[0]?.[0] as {
+      source: { bytes: Uint8Array; kind: string };
+    };
+    expect(submission.source.kind).toBe('archive');
+    expect(Array.from(submission.source.bytes)).toEqual([1, 2, 3]);
+  });
+
+  it('reports portable archive read failures', async () => {
+    const user = userEvent.setup();
+    render(
+      <OperationDialog
+        kind="import"
+        onClose={() => undefined}
+        onSubmit={() => undefined}
+        selectedCount={0}
+        selectedTitle="No selection"
+      />,
+    );
+    const file = new File(['bad'], 'bad.waterlily');
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: () => Promise.reject(new Error('browser detail')),
+    });
+    await user.upload(screen.getByLabelText(/Choose .waterlily or/), file);
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'selected file could not be read',
     );

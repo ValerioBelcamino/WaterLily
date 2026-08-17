@@ -247,6 +247,73 @@ describe('WaterLilyClient', () => {
     );
   });
 
+  it('downloads attachment bytes and deletes stored attachments', async () => {
+    const bytes = new TextEncoder().encode('pdf');
+    const fetchClient = fetchMock((_input, init) => {
+      if (init?.method === 'DELETE')
+        return Promise.resolve(new Response(null, { status: 204 }));
+      return Promise.resolve(
+        new Response(bytes, {
+          headers: {
+            'content-length': String(bytes.byteLength),
+            'content-type': 'application/pdf',
+            'x-waterlily-filename': encodeURIComponent('paper one.pdf'),
+            'x-waterlily-sha256': 'a'.repeat(64),
+          },
+        }),
+      );
+    });
+    const client = new WaterLilyClient(fetchClient);
+    const downloaded = await client.downloadAttachment('attachment/one');
+    expect(Array.from(downloaded.bytes)).toEqual(Array.from(bytes));
+    expect(downloaded.descriptor).toEqual({
+      id: 'attachment/one',
+      mediaType: 'application/pdf',
+      name: 'paper one.pdf',
+      sha256: 'a'.repeat(64),
+      size: 3,
+    });
+    await expect(
+      client.removeAttachment('attachment/one'),
+    ).resolves.toBeUndefined();
+    expect(fetchClient).toHaveBeenNthCalledWith(
+      1,
+      '/api/attachments/attachment%2Fone',
+      { headers: { Accept: 'application/octet-stream' } },
+    );
+    expect(fetchClient).toHaveBeenNthCalledWith(
+      2,
+      '/api/attachments/attachment%2Fone',
+      { method: 'DELETE' },
+    );
+  });
+
+  it('rejects invalid attachment downloads and failed attachment deletion', async () => {
+    const responses = [
+      new Response('x', { headers: { 'content-type': 'text/plain' } }),
+      Response.json(
+        { error: { code: 'NOT_FOUND', message: 'Attachment missing' } },
+        { status: 404 },
+      ),
+      Response.json(
+        { error: { code: 'NOT_FOUND', message: 'Attachment missing' } },
+        { status: 404 },
+      ),
+    ];
+    const client = new WaterLilyClient(
+      fetchMock(() => Promise.resolve(responses.shift() as Response)),
+    );
+    await expect(client.downloadAttachment('bad')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+    await expect(client.downloadAttachment('missing')).rejects.toThrow(
+      'Attachment missing',
+    );
+    await expect(client.removeAttachment('missing')).rejects.toThrow(
+      'Attachment missing',
+    );
+  });
+
   it('rejects malformed profile, attachment, Python, and delete responses', async () => {
     const badValues = [
       Response.json({ available: true }),

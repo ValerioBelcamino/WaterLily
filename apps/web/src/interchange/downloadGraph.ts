@@ -1,6 +1,7 @@
 import type { GraphSnapshot } from '@waterlily/domain';
 import {
   exportGraphDocument,
+  type ExportedWaterLilyArchive,
   type GraphViewState,
 } from '@waterlily/interchange';
 
@@ -31,4 +32,23 @@ export async function downloadGraph(
     URL.revokeObjectURL(url);
   }
   return exported.sha256;
+}
+
+export function downloadWaterLilyArchive(
+  archive: ExportedWaterLilyArchive,
+  graphId: string,
+): void {
+  const url = URL.createObjectURL(
+    new Blob([archive.bytes.slice().buffer], {
+      type: 'application/vnd.waterlily+zip',
+    }),
+  );
+  try {
+    const anchor = document.createElement('a');
+    anchor.download = `${graphId}.waterlily`;
+    anchor.href = url;
+    anchor.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }

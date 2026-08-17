@@ -23,7 +23,7 @@ import { GraphCanvas } from './graph/GraphCanvas';
 import { nodeTitle, revisionText } from './graph/graphViewModel';
 import { createPortableId } from './ids';
 import { Inspector } from './Inspector';
-import { downloadGraph } from './interchange/downloadGraph';
+import { downloadWaterLilyArchive } from './interchange/downloadGraph';
 import {
   OperationDialog,
   type OperationKind,
@@ -74,10 +74,8 @@ export function App() {
     (state) => state.contextSelections,
   );
   const graph = useWaterLilyStore((state) => state.graph);
-  const groups = useWaterLilyStore((state) => state.groups);
   const merge = useWaterLilyStore((state) => state.merge);
   const mergeDocument = useWaterLilyStore((state) => state.mergeDocument);
-  const positions = useWaterLilyStore((state) => state.positions);
   const selectedNodeId = useWaterLilyStore((state) => state.selectedNodeId);
   const selectedNodeIds = useWaterLilyStore((state) => state.selectedNodeIds);
   const selectNode = useWaterLilyStore((state) => state.selectNode);
@@ -100,19 +98,33 @@ export function App() {
     (model) => model.id === service.selectedModelId,
   );
   const generationActive = service.generation.status !== 'idle';
+  const archiveActive = service.archiveStatus !== 'idle';
   const statusMessage =
-    service.generation.status === 'saving'
-      ? 'Saving the exact context snapshot…'
-      : service.generation.status === 'streaming'
-        ? 'Streaming a model response…'
-        : (notice ??
-          service.serviceError ??
-          `${String(nodeCount)} nodes · ${String(edgeCount)} typed edges · local draft`);
+    service.archiveStatus === 'exporting'
+      ? 'Packaging the portable WaterLily archive…'
+      : service.archiveStatus === 'importing'
+        ? 'Validating and importing the WaterLily archive…'
+        : service.generation.status === 'saving'
+          ? 'Saving the exact context snapshot…'
+          : service.generation.status === 'streaming'
+            ? 'Streaming a model response…'
+            : (notice ??
+              service.serviceError ??
+              `${String(nodeCount)} nodes · ${String(edgeCount)} typed edges · local draft`);
 
-  const submitOperation = (submission: OperationSubmission): void => {
+  const submitOperation = async (
+    submission: OperationSubmission,
+  ): Promise<void> => {
     const createdAt = new Date().toISOString();
     if (submission.kind === 'import') {
-      const document = parseGraphDocument(submission.json);
+      if (submission.source.kind === 'archive') {
+        const imported = await service.importArchive(submission.source.bytes);
+        setNotice(
+          `Imported ${String(imported.nodeCount)} nodes and ${String(imported.attachmentCount)} attachment${imported.attachmentCount === 1 ? '' : 's'}.`,
+        );
+        return;
+      }
+      const document = parseGraphDocument(submission.source.text);
       mergeDocument(document, (kind) => importId(kind));
       setNotice(
         `Imported ${String(Object.keys(document.graph.nodes).length)} nodes.`,
@@ -219,12 +231,9 @@ export function App() {
 
   const exportCurrentGraph = async (): Promise<void> => {
     try {
-      const hash = await downloadGraph({
-        exportedAt: new Date().toISOString(),
-        graph,
-        view: { groups, positions },
-      });
-      setNotice(`Exported checksummed JSON · ${hash.slice(0, 10)}…`);
+      const archive = await service.exportArchive();
+      downloadWaterLilyArchive(archive, graph.id);
+      setNotice(`Exported portable archive · ${archive.sha256.slice(0, 10)}…`);
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : 'Export failed.');
     }
@@ -332,10 +341,18 @@ export function App() {
             >
               <FolderPlus aria-hidden="true" size={17} /> Group
             </button>
-            <button type="button" onClick={() => setDialog('import')}>
+            <button
+              type="button"
+              disabled={archiveActive || generationActive}
+              onClick={() => setDialog('import')}
+            >
               <Upload aria-hidden="true" size={17} /> Import
             </button>
-            <button type="button" onClick={() => void exportCurrentGraph()}>
+            <button
+              type="button"
+              disabled={archiveActive || generationActive}
+              onClick={() => void exportCurrentGraph()}
+            >
               <Download aria-hidden="true" size={17} /> Export
             </button>
           </div>

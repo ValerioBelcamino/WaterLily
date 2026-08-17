@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   createGraphDocument,
@@ -21,9 +21,11 @@ function serviceState(
 ): WaterLilyServiceState {
   return {
     activeFlow: null,
+    archiveStatus: 'idle',
     cancel: vi.fn(),
     createProviderProfile: vi.fn(() => Promise.resolve()),
     executePython: vi.fn(() => Promise.resolve()),
+    exportArchive: vi.fn(() => Promise.reject(new Error('Unavailable'))),
     execution: { error: null, result: null, status: 'idle' },
     generate: vi.fn(() => Promise.resolve()),
     generation: {
@@ -33,6 +35,7 @@ function serviceState(
       status: 'idle',
       text: '',
     },
+    importArchive: vi.fn(() => Promise.reject(new Error('Unavailable'))),
     providers: [],
     removeProviderProfile: vi.fn(() => Promise.resolve()),
     selectedModelId: null,
@@ -224,7 +227,7 @@ describe('App', () => {
       graph: sampleGraph,
     });
     await user.click(screen.getByRole('button', { name: 'Import' }));
-    fireEvent.change(screen.getByLabelText('Graph document'), {
+    fireEvent.change(screen.getByLabelText('Legacy graph JSON'), {
       target: { value: serializeGraphDocument(document) },
     });
     await user.click(screen.getByRole('button', { name: 'Validate & import' }));
@@ -233,6 +236,46 @@ describe('App', () => {
       14,
     );
     expect(screen.getByText('Imported 7 nodes.')).toBeVisible();
+  });
+
+  it('delegates portable archive import and export', async () => {
+    const user = userEvent.setup();
+    const importArchive = vi.fn(() =>
+      Promise.resolve({ attachmentCount: 2, nodeCount: 4 }),
+    );
+    const exportArchive = vi.fn(() =>
+      Promise.resolve({
+        bytes: new Uint8Array([80, 75]),
+        manifest: {} as never,
+        sha256: 'b'.repeat(64),
+      }),
+    );
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:app-archive');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(
+      () => undefined,
+    );
+    vi.mocked(useWaterLilyService).mockReturnValue(
+      serviceState({ exportArchive, importArchive }),
+    );
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+    const file = new File(['archive'], 'shared.waterlily');
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: vi.fn().mockResolvedValue(new Uint8Array([1, 2]).buffer),
+    });
+    await user.upload(screen.getByLabelText(/Choose .waterlily or/), file);
+    await screen.findByText(/Ready to import shared.waterlily/);
+    await user.click(screen.getByRole('button', { name: 'Validate & import' }));
+    await waitFor(() => expect(importArchive).toHaveBeenCalledOnce());
+    expect(
+      screen.getByText('Imported 4 nodes and 2 attachments.'),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() => expect(exportArchive).toHaveBeenCalledOnce());
+    expect(screen.getByText(/Exported portable archive/)).toBeVisible();
   });
 
   it('shows online providers and delegates provider selection', async () => {
@@ -324,6 +367,23 @@ describe('App', () => {
     );
     rendered.rerender(<App />);
     expect(screen.getByText('Local service unavailable')).toBeVisible();
+
+    vi.mocked(useWaterLilyService).mockReturnValue(
+      serviceState({ archiveStatus: 'exporting' }),
+    );
+    rendered.rerender(<App />);
+    expect(
+      screen.getByText('Packaging the portable WaterLily archive…'),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();
+
+    vi.mocked(useWaterLilyService).mockReturnValue(
+      serviceState({ archiveStatus: 'importing' }),
+    );
+    rendered.rerender(<App />);
+    expect(
+      screen.getByText('Validating and importing the WaterLily archive…'),
+    ).toBeVisible();
   });
 
   it('adds a Python cell to the selected flow and delegates its execution', async () => {

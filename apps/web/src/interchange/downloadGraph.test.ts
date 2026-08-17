@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { sampleGraph } from '../sampleGraph';
-import { downloadGraph } from './downloadGraph';
+import { downloadGraph, downloadWaterLilyArchive } from './downloadGraph';
 
 describe('downloadGraph', () => {
   afterEach(() => {
@@ -52,5 +52,33 @@ describe('downloadGraph', () => {
       }),
     ).rejects.toThrow('Downloads blocked');
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:failed');
+  });
+
+  it('downloads a portable archive with the WaterLily extension', () => {
+    const createObjectURL = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:archive');
+    const revokeObjectURL = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    downloadWaterLilyArchive(
+      {
+        bytes: new Uint8Array([80, 75]),
+        manifest: {} as never,
+        sha256: 'a'.repeat(64),
+      },
+      'graph-study',
+    );
+
+    const anchor = click.mock.instances[0] as HTMLAnchorElement | undefined;
+    expect(anchor?.download).toBe('graph-study.waterlily');
+    const blob = createObjectURL.mock.calls[0]?.[0];
+    expect(blob).toBeInstanceOf(Blob);
+    expect((blob as Blob).type).toBe('application/vnd.waterlily+zip');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:archive');
   });
 });

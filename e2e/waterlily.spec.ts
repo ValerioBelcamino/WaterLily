@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 test('generates from a graph head and persists graph and view changes', async ({
   page,
@@ -135,4 +136,31 @@ test('generates from a graph head and persists graph and view changes', async ({
     .getByRole('article', { name: 'Merged understanding, summary' })
     .click();
   await expect(page.getByRole('button', { name: 'Excluded' })).toBeVisible();
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('graph-bioenergetics.waterlily');
+  const archivePath = await download.path();
+  expect(archivePath).not.toBeNull();
+
+  await page.getByRole('button', { name: 'Import' }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    buffer: await readFile(archivePath),
+    mimeType: 'application/vnd.waterlily+zip',
+    name: download.suggestedFilename(),
+  });
+  await expect(page.getByText(/Ready to import .*\.waterlily/u)).toBeVisible();
+  await page.getByRole('button', { name: 'Validate & import' }).click();
+  await expect(
+    page.getByText('Imported 10 nodes and 1 attachment.'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', {
+      name: /Oxidative phosphorylation 20 nodes/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('article', { name: 'evidence.txt, attachment' }),
+  ).toHaveCount(2);
 });

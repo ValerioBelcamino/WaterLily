@@ -25,7 +25,12 @@ export type OperationSubmission =
       readonly color: string;
       readonly title: string;
     }
-  | { readonly json: string; readonly kind: 'import' }
+  | {
+      readonly kind: 'import';
+      readonly source:
+        | { readonly bytes: Uint8Array; readonly kind: 'archive' }
+        | { readonly kind: 'json'; readonly text: string };
+    }
   | {
       readonly kind: 'split';
       readonly parts: readonly string[];
@@ -45,7 +50,7 @@ const LABELS: Readonly<Record<OperationKind, string>> = {
   branch: 'Branch from node',
   code: 'Add Python cell',
   group: 'Group selected nodes',
-  import: 'Import graph JSON',
+  import: 'Import WaterLily graph',
   merge: 'Merge selected branches',
   split: 'Split node into excerpts',
 };
@@ -67,6 +72,8 @@ export function OperationDialog({
 }: OperationDialogProps) {
   const [color, setColor] = useState('#7669a8');
   const [error, setError] = useState<string | null>(null);
+  const [archive, setArchive] = useState<Uint8Array | null>(null);
+  const [archiveName, setArchiveName] = useState<string | null>(null);
   const [json, setJson] = useState('');
   const [text, setText] = useState(kind === 'split' ? initialText : '');
   const [title, setTitle] = useState('');
@@ -119,9 +126,15 @@ export function OperationDialog({
           throw new Error('Group name cannot be blank.');
         await onSubmit({ color, kind, title: title.trim() });
       } else {
-        if (json.trim().length === 0)
+        if (archive === null && json.trim().length === 0)
           throw new Error('Paste or choose a graph document.');
-        await onSubmit({ json, kind });
+        await onSubmit({
+          kind,
+          source:
+            archive === null
+              ? { kind: 'json', text: json }
+              : { bytes: archive, kind: 'archive' },
+        });
       }
       onClose();
     } catch (cause) {
@@ -265,32 +278,63 @@ export function OperationDialog({
           {kind === 'import' ? (
             <>
               <label className="operation-dialog__file">
-                <FileJson2 aria-hidden="true" size={16} /> Choose JSON file
+                <FileJson2 aria-hidden="true" size={16} /> Choose .waterlily or
+                JSON file
                 <input
-                  accept="application/json,.json"
+                  accept=".waterlily,.json,application/json,application/zip,application/octet-stream"
                   type="file"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file !== undefined)
-                      void file.text().then(setJson, () => {
+                    if (file === undefined) return;
+                    setError(null);
+                    if (file.name.toLowerCase().endsWith('.waterlily')) {
+                      void file.arrayBuffer().then(
+                        (buffer) => {
+                          setArchive(new Uint8Array(buffer));
+                          setArchiveName(file.name);
+                          setJson('');
+                        },
+                        () => {
+                          setError('The selected file could not be read.');
+                        },
+                      );
+                      return;
+                    }
+                    void file.text().then(
+                      (value) => {
+                        setArchive(null);
+                        setArchiveName(null);
+                        setJson(value);
+                      },
+                      () => {
                         setError('The selected file could not be read.');
-                      });
+                      },
+                    );
                   }}
                 />
               </label>
+              {archiveName === null ? null : (
+                <small>Ready to import {archiveName}</small>
+              )}
               <label>
-                Graph document
+                Legacy graph JSON
                 <textarea
                   autoFocus
-                  required
+                  required={archive === null}
+                  disabled={archive !== null}
                   value={json}
-                  onChange={(event) => setJson(event.target.value)}
+                  onChange={(event) => {
+                    setArchive(null);
+                    setArchiveName(null);
+                    setJson(event.target.value);
+                  }}
                   placeholder="Paste waterlily/graph JSON…"
                 />
               </label>
               <small>
-                Imported identifiers are remapped before the graph is merged.
-                Plain JSON v1 rejects attachments and credential-shaped fields.
+                .waterlily archives preserve attachments, layout, groups, and
+                context choices. Legacy JSON preserves the graph and layout but
+                cannot contain attachments. Credentials are never imported.
               </small>
             </>
           ) : null}
