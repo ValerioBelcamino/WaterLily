@@ -1,6 +1,8 @@
 import {
   createGraph,
   createNode,
+  reviseTextBlock,
+  setTemplateBinding,
   validateGraph,
   type GraphSnapshot,
 } from '@waterlily/domain';
@@ -79,6 +81,44 @@ describe('graph document importing', () => {
         'import-node-node-user',
         'import-node-node-answer',
       ],
+    });
+    expect(() => validateGraph(result.graph)).not.toThrow();
+  });
+
+  it('remaps revision-pinned template bindings with their imported graph', () => {
+    const templated = setTemplateBinding(
+      reviseTextBlock(sampleDocument().graph, {
+        blockId: 'block-user',
+        createdAt: time(9),
+        nodeId: 'node-user',
+        revisionId: 'revision-user-template',
+        text: 'Question about {{system_prompt}}',
+      }),
+      {
+        createdAt: time(10),
+        name: 'system_prompt',
+        nodeId: 'node-user',
+        revisionId: 'revision-user-bound',
+        sourceNodeId: 'node-system',
+        targetBlockId: 'block-user',
+      },
+    );
+    const result = cloneGraphSnapshot({
+      graph: templated,
+      remapId: prefixedRemapper,
+    });
+    expect(
+      result.graph.revisions['import-revision-revision-user-bound']?.blocks[0],
+    ).toMatchObject({
+      template: {
+        bindings: [
+          {
+            name: 'system_prompt',
+            sourceNodeId: 'import-node-node-system',
+            sourceRevisionId: 'import-revision-revision-system',
+          },
+        ],
+      },
     });
     expect(() => validateGraph(result.graph)).not.toThrow();
   });

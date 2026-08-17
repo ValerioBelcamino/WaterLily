@@ -1,5 +1,6 @@
 import {
   validateGraph,
+  type ContentBlock,
   type GraphEdge,
   type GraphNode,
   type GraphSnapshot,
@@ -83,6 +84,26 @@ function importMetadata(
   };
 }
 
+function importBlocks(
+  revision: NodeRevision,
+  mapping: ImportMapping,
+): readonly ContentBlock[] {
+  return revision.blocks.map((block) => {
+    if (block.type !== 'text' || block.template === undefined) return block;
+    return {
+      ...block,
+      template: {
+        ...block.template,
+        bindings: block.template.bindings.map((binding) => ({
+          ...binding,
+          sourceNodeId: mapped(mapping.nodes, binding.sourceNodeId),
+          sourceRevisionId: mapped(mapping.revisions, binding.sourceRevisionId),
+        })),
+      },
+    };
+  });
+}
+
 function remapView(
   view: GraphViewState,
   mapping: ImportMapping,
@@ -162,6 +183,7 @@ export function cloneGraphSnapshot(
         remappedId,
         {
           ...revision,
+          blocks: importBlocks(revision, mapping),
           id: remappedId,
           metadata: importMetadata(revision, input.graph.id),
           nodeId: mapped(mapping.nodes, revision.nodeId),

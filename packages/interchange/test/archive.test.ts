@@ -1,4 +1,5 @@
 import {
+  connectProvenance,
   createNode,
   type GraphSnapshot,
   type NodeRevision,
@@ -163,6 +164,69 @@ describe('WaterLily archives', () => {
     await expect(parseWaterLilyArchive(exported.bytes)).resolves.toMatchObject({
       attachments: [],
       workspace,
+    });
+  });
+
+  it('persists editable checkpoints and their pinned template inputs', async () => {
+    let graph = createNode(sampleGraph(), {
+      blocks: [
+        {
+          format: 'markdown',
+          id: 'block-checkpoint',
+          template: {
+            bindings: [
+              {
+                name: 'source',
+                sourceBlockId: 'block-user',
+                sourceNodeId: 'node-user',
+                sourceRevisionId: 'revision-user',
+              },
+            ],
+            version: 1,
+          },
+          text: 'Editable summary of {{source}}',
+          type: 'text',
+        },
+      ],
+      createdAt: time(9),
+      kind: 'summary',
+      metadata: { checkpoint: { sourceCount: 1, version: 1 } },
+      nodeId: 'node-checkpoint',
+      revisionId: 'revision-checkpoint',
+      title: 'Exam checkpoint',
+    });
+    graph = connectProvenance(graph, {
+      createdAt: time(10),
+      edgeId: 'edge-user-checkpoint',
+      relation: 'summarized',
+      sourceNodeId: 'node-user',
+      targetNodeId: 'node-checkpoint',
+    });
+    const workspace: ArchiveWorkspaceV1 = {
+      graph,
+      state: {
+        contextSelections: {},
+        version: 1,
+        view: { groups: [], positions: {} },
+      },
+    };
+    const exported = await createWaterLilyArchive({
+      attachments: [],
+      exportedAt: time(20),
+      exporter: { name: 'WaterLily', version: 'test' },
+      workspace,
+    });
+    const parsed = await parseWaterLilyArchive(exported.bytes);
+    expect(parsed.workspace.graph.nodes['node-checkpoint']).toMatchObject({
+      kind: 'summary',
+      title: 'Exam checkpoint',
+    });
+    expect(
+      parsed.workspace.graph.revisions['revision-checkpoint']?.blocks[0],
+    ).toEqual(graph.revisions['revision-checkpoint']?.blocks[0]);
+    expect(parsed.workspace.graph.edges['edge-user-checkpoint']).toMatchObject({
+      kind: 'provenance',
+      relation: 'summarized',
     });
   });
 
