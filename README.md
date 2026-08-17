@@ -18,6 +18,15 @@ accepted RFCs.
 - Branch from an immutable revision, make verbatim provenance-linked excerpts,
   and merge ordered context heads without flattening their history.
 - Include or exclude nodes from future model context explicitly.
+- Edit user, system, note, and summary text as immutable revisions. Text blocks
+  can expose escaped `{{variable}}` input pins connected to exact graph
+  revisions; their lilac dependency lines join the active-flow glow.
+- Turn any selection into a persistent, editable summary checkpoint. Its source
+  revisions remain provenance-linked while new branches start from the compact
+  summary instead of replaying the complete ancestry.
+- Inspect an approximate per-node token meter for the selected flow. Known model
+  windows reserve output capacity and prevent an oversized request; unknown
+  local-model limits are labelled instead of guessed.
 - Click a graph head to preview its compiled context path, or Shift-click
   several heads to preview an ordered multi-branch flow. Active lines glow blue;
   a running generation pulses green while unrelated paths fade.
@@ -123,6 +132,23 @@ The older `waterlily/graph` JSON remains useful for inspection and integrations,
 but it deliberately cannot contain attachment references or context-selection
 state. Neither format includes API keys. The archive contract is specified in
 [RFC-006](docs/rfcs/006-waterlily-archive.md).
+
+## Templates and context checkpoints
+
+Edit an eligible text node and write `{{topic}}` to create an input pin. Drag a
+node's right-side text output onto that pin, or choose its source in the
+inspector. The binding pins the source's current immutable revision. Reconnect
+it after editing the source when you intentionally want the newer version. Write
+`\{{topic}}` when the braces should remain literal. Inserted values are never
+interpreted again, and non-text fields are never templated.
+
+Select one or more useful heads and choose **Checkpoint** to create a compact
+context root. The summary remains editable and is stored in SQLite and portable
+`.waterlily` archives like every other graph revision. The inspector's context
+meter follows the exact active heads and include/exclude choices. Its text count
+is approximate; native files are listed separately because provider-side file
+tokenization is not available locally. The full contract is in
+[RFC-007](docs/rfcs/007-templates-checkpoints-context-meter.md).
 
 ## Desktop releases
 

@@ -34,6 +34,9 @@ feature. Failed experiments and plan corrections belong here too.
 | Import/export              | Complete | 36 tests; >97% all coverage dimensions   |
 | Dropped-file context       | Complete | Unit, compilation, and Chromium E2E pass |
 | Active context flow        | Complete | Exact compiler projection and E2E glow   |
+| Text binding pins          | Complete | Escaped, pinned, single-pass resolution  |
+| Summary checkpoints        | Complete | Editable persistent context roots        |
+| Context token meter        | Complete | Model-aware approximate input budget     |
 | Live DeepSeek verification | Complete | 3 credential-safe V4 Flash calls pass    |
 | Public-alpha hardening     | Complete | Full-stack Chromium E2E and CI pass      |
 
@@ -845,3 +848,53 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   (267,195,965 bytes). The companion
   [CI run](https://github.com/ValerioBelcamino/WaterLily/actions/runs/32024077053)
   also passes through production Chromium E2E.
+
+## 2026-08-17 — Text bindings, checkpoints, and context budgeting
+
+### Implemented
+
+- Added versioned templates to text content blocks. Escaped `{{name}}` parsing,
+  single-pass substitution, immutable binding/edit revisions, exact source
+  revision pins, stale-reference checks, cycle detection, and a 1 MiB resolved
+  text ceiling live in the provider-neutral domain.
+- Materialized bindings only after context block selection, so an excluded
+  unresolved template cannot break an unrelated generation. Binding content is
+  resolved before hashing, estimating, and provider serialization.
+- Projected named input pins and lilac virtual dependency edges on the React
+  Flow canvas. Both inspector selectors and direct edge connections create the
+  same pinned graph revision. Binding dependencies join compiler-derived active
+  preview and running-flow highlighting.
+- Added manual summary checkpoints. Each is a persistent editable summary node
+  with revision-pinned `summarized` provenance and no incoming context, making
+  it a deliberate compact root instead of an implicit traversal of its sources.
+- Added a model-aware context meter with an approximate UTF-8 text estimator,
+  per-node breakdown, output reserve, overflow blocking, unknown-limit state,
+  and a separate native-file count. Known budgets also reach server-side
+  compilation.
+- Extended model descriptors with optional input/output token limits. Current
+  built-in OpenAI model metadata follows the official model documentation;
+  custom and local models remain unknown unless their descriptor advertises a
+  limit.
+- Preserved templates and checkpoints through SQLite, canonical graph JSON, and
+  checksummed `.waterlily` archives. Collision-safe imports remap every pinned
+  binding node and revision along with the rest of the graph.
+
+### Verification evidence
+
+- Domain tests cover escape parity, opaque inserted braces, immutable edit and
+  unbind revisions, missing pins, stale sources, and dependency cycles.
+- Context, workflow, interchange, server, and web tests cover resolved provider
+  input, token estimates and overflow, compact checkpoint compilation, binding
+  remapping, archive round-trips, model limits, pin connections, active-flow
+  projection, inspector editing, and complete application wiring.
+- `pnpm check` passes all 39 repository tasks: 502 deterministic tests pass and
+  the three opt-in, billable live-provider tests remain skipped.
+- `pnpm test:coverage` passes all 19 gates. The new domain, context-engine,
+  workflow, and web paths respectively reach 98.79%, 99.36%, 99.37%, and 96.55%
+  statement coverage without lowering any package threshold.
+- Production Chromium creates, binds, edits, saves, reloads, exports, and
+  collision-safely imports a templated checkpoint while verifying both lilac
+  dependency edges and active-flow highlighting.
+- Forge packages Linux x64, and Playwright launches the resulting Electron
+  executable with its private API and sandboxed renderer. No live provider call
+  or credential access was required for these deterministic checks.
