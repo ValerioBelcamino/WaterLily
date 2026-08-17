@@ -12,11 +12,73 @@ import {
 import { failWorkflow } from './errors.js';
 import type {
   BranchInput,
+  CreateCheckpointInput,
   MergeInput,
   NewMessageNode,
   SplitInput,
   SplitResult,
 } from './types.js';
+
+export function createCheckpoint(input: CreateCheckpointInput): GraphSnapshot {
+  validateGraph(input.graph);
+  if (input.sources.length === 0) {
+    failWorkflow(
+      'INVALID_OPERATION',
+      'A checkpoint requires at least one source',
+    );
+  }
+  if (input.provenanceEdgeIds.length !== input.sources.length) {
+    failWorkflow(
+      'INVALID_OPERATION',
+      'A checkpoint requires one provenance edge id for every source',
+    );
+  }
+  if (
+    new Set(input.sources.map((source) => source.nodeId)).size !==
+    input.sources.length
+  ) {
+    failWorkflow('INVALID_OPERATION', 'Checkpoint sources must be distinct');
+  }
+  if (input.summary.text.trim().length === 0) {
+    failWorkflow('INVALID_OPERATION', 'A checkpoint summary cannot be blank');
+  }
+
+  let graph = createNode(input.graph, {
+    blocks: [
+      {
+        format: 'markdown',
+        id: input.summary.blockId,
+        template: { bindings: [], version: 1 },
+        text: input.summary.text,
+        type: 'text',
+      },
+    ],
+    createdAt: input.summary.createdAt,
+    kind: 'summary',
+    metadata: {
+      checkpoint: {
+        sourceCount: input.sources.length,
+        version: 1,
+      },
+    },
+    nodeId: input.summary.nodeId,
+    revisionId: input.summary.revisionId,
+    title: input.summary.title ?? 'Context checkpoint',
+  });
+  input.sources.forEach((source, index) => {
+    graph = connectProvenance(graph, {
+      createdAt: input.summary.createdAt,
+      edgeId: input.provenanceEdgeIds[index] as string,
+      relation: 'summarized',
+      sourceNodeId: source.nodeId,
+      ...(source.revisionId === undefined
+        ? {}
+        : { sourceRevisionId: source.revisionId }),
+      targetNodeId: input.summary.nodeId,
+    });
+  });
+  return graph;
+}
 
 function addUserMessage(
   graph: GraphSnapshot,
@@ -27,6 +89,7 @@ function addUserMessage(
       {
         format: 'markdown',
         id: message.blockId,
+        template: { bindings: [], version: 1 },
         text: message.text,
         type: 'text',
       },

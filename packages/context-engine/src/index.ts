@@ -1,5 +1,6 @@
 export { canonicalJson, sha256 } from './canonical.js';
 export { compileContext } from './compiler.js';
+export { approximateTextTokenEstimator } from './estimators.js';
 export {
   CONTEXT_ERROR_CODES,
   ContextCompilerError,

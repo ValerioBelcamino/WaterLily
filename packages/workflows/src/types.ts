@@ -64,6 +64,16 @@ export interface SplitResult {
   readonly nodeIds: readonly string[];
 }
 
+export interface CreateCheckpointInput {
+  readonly graph: GraphSnapshot;
+  readonly provenanceEdgeIds: readonly string[];
+  readonly sources: readonly {
+    readonly nodeId: string;
+    readonly revisionId?: string;
+  }[];
+  readonly summary: NewMessageNode;
+}
+
 export interface SerializedProviderRequest {
   readonly contextHash: string;
   readonly request: ChatRequest;

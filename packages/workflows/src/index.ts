@@ -1,4 +1,9 @@
-export { branchFromNode, mergeBranches, splitNode } from './editing.js';
+export {
+  branchFromNode,
+  createCheckpoint,
+  mergeBranches,
+  splitNode,
+} from './editing.js';
 export {
   applyGenerationCommit,
   runGeneration,
@@ -11,6 +16,7 @@ export {
 } from './errors.js';
 export type {
   BranchInput,
+  CreateCheckpointInput,
   GeneratedResponseCommit,
   GenerationContextHead,
   GenerationOutputIdentity,

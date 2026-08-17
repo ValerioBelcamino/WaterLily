@@ -1,4 +1,5 @@
 import {
+  resolveSelectedRevisionBlocks,
   validateGraph,
   type ContentBlock,
   type ContextEdge,
@@ -221,6 +222,7 @@ function findSelection(
 }
 
 function applySelection(
+  graph: GraphSnapshot,
   item: CompiledContextItem,
   selection: ContextSelection,
 ): {
@@ -262,6 +264,11 @@ function applySelection(
     }
   }
 
+  const resolvedBlocks = resolveSelectedRevisionBlocks(
+    graph,
+    item.revisionId,
+    new Set(blocks.map((block) => block.id)),
+  );
   return {
     decision: {
       includedBlockIds: blocks.map((block) => block.id),
@@ -269,7 +276,7 @@ function applySelection(
       nodeId: item.nodeId,
       revisionId: item.revisionId,
     },
-    item: { ...item, blocks },
+    item: { ...item, blocks: resolvedBlocks },
   };
 }
 
@@ -375,7 +382,11 @@ export async function compileContext(
   ): readonly CompiledContextItem[] =>
     keys.flatMap((key) => {
       const item = context.itemByKey.get(key) as CompiledContextItem;
-      const applied = applySelection(item, findSelection(item, overrides));
+      const applied = applySelection(
+        input.graph,
+        item,
+        findSelection(item, overrides),
+      );
       decisionsByKey.set(key, applied.decision);
       return applied.item === null ? [] : [applied.item];
     });

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   branchFromNode,
+  createCheckpoint,
   mergeBranches,
   splitNode,
   WorkflowError,
@@ -19,6 +20,76 @@ const message = {
 } as const;
 
 describe('editing workflows', () => {
+  it('creates a persistent summary checkpoint with provenance-only sources', () => {
+    const graph = createCheckpoint({
+      graph: linearGraph(),
+      provenanceEdgeIds: ['edge-summary-source'],
+      sources: [{ nodeId: 'node-user', revisionId: 'revision-user' }],
+      summary: {
+        blockId: 'block-checkpoint',
+        createdAt: time(5),
+        nodeId: 'node-checkpoint',
+        revisionId: 'revision-checkpoint',
+        text: 'ATP formation depends on a proton gradient.',
+        title: 'Energy checkpoint',
+      },
+    });
+
+    expect(graph.nodes['node-checkpoint']).toMatchObject({
+      kind: 'summary',
+      title: 'Energy checkpoint',
+    });
+    expect(graph.revisions['revision-checkpoint']).toMatchObject({
+      blocks: [
+        {
+          template: { bindings: [], version: 1 },
+          text: 'ATP formation depends on a proton gradient.',
+        },
+      ],
+      metadata: { checkpoint: { sourceCount: 1, version: 1 } },
+    });
+    expect(graph.edges['edge-summary-source']).toMatchObject({
+      kind: 'provenance',
+      relation: 'summarized',
+      sourceRevisionId: 'revision-user',
+      targetNodeId: 'node-checkpoint',
+    });
+    expect(
+      Object.values(graph.edges).filter(
+        (edge) =>
+          edge.kind === 'context' && edge.targetNodeId === 'node-checkpoint',
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    { edgeIds: [], sources: [], text: 'Summary' },
+    {
+      edgeIds: [],
+      sources: [{ nodeId: 'node-user' }],
+      text: 'Summary',
+    },
+    {
+      edgeIds: ['a', 'b'],
+      sources: [{ nodeId: 'node-user' }, { nodeId: 'node-user' }],
+      text: 'Summary',
+    },
+    {
+      edgeIds: ['a'],
+      sources: [{ nodeId: 'node-user' }],
+      text: '   ',
+    },
+  ])('rejects invalid checkpoints %#', ({ edgeIds, sources, text }) => {
+    expect(() =>
+      createCheckpoint({
+        graph: linearGraph(),
+        provenanceEdgeIds: edgeIds,
+        sources,
+        summary: { ...message, text },
+      }),
+    ).toThrow(WorkflowError);
+  });
+
   it('branches from an explicitly pinned historical revision', () => {
     const original = linearGraph();
     const revised = reviseNode(original, {

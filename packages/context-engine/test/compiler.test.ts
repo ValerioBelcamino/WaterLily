@@ -5,10 +5,15 @@ import {
   connectProvenance,
   connectReference,
   reviseNode,
+  setTemplateBinding,
   type GraphSnapshot,
 } from '@waterlily/domain';
 
-import { compileContext, type ContextHead } from '../src/index.js';
+import {
+  approximateTextTokenEstimator,
+  compileContext,
+  type ContextHead,
+} from '../src/index.js';
 import {
   addNode,
   connect,
@@ -70,6 +75,47 @@ describe('context traversal', () => {
       { code: 'TOKEN_ESTIMATE_UNAVAILABLE' },
     ]);
     expect(compiled.hash).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
+  it('materializes escaped, revision-pinned templates before compilation', async () => {
+    let graph = emptyGraph();
+    graph = addNode(graph, {
+      id: 'source',
+      kind: 'note',
+      offset: 1,
+      text: 'ATP synthase',
+    });
+    graph = addNode(graph, {
+      blocks: [
+        {
+          format: 'markdown',
+          id: 'prompt-block',
+          template: { bindings: [], version: 1 },
+          text: 'Explain {{topic}} and show \\{{literal}}.',
+          type: 'text',
+        },
+      ],
+      id: 'prompt',
+      offset: 2,
+    });
+    graph = setTemplateBinding(graph, {
+      createdAt: timestamp(3),
+      name: 'topic',
+      nodeId: 'prompt',
+      revisionId: 'prompt-revision-2',
+      sourceNodeId: 'source',
+      targetBlockId: 'prompt-block',
+    });
+    const compiled = await compileContext({
+      graph,
+      heads: [{ label: 'Template', nodeId: 'prompt', slot: 0 }],
+      tokenEstimator: approximateTextTokenEstimator,
+    });
+    expect(compiled.common.items[0]?.blocks[0]).toMatchObject({
+      text: 'Explain ATP synthase and show {{literal}}.',
+    });
+    expect(compiled.estimatedTokens).toBe(11);
+    expect(compiled.estimatorId).toBe('waterlily:utf8-bytes-per-4:v1');
   });
 
   it('factors shared ancestry once and orders branches by explicit head slot', async () => {
