@@ -68,15 +68,20 @@ image updates and a container-escape threat model.
 
 ## Desktop application boundary
 
-Packaging WaterLily in Electron does not automatically sandbox Python. The UI
-renderer should independently use Electron's Chromium process sandbox,
-`contextIsolation`, and no Node integration. Electron documents that sandboxed
-renderers cannot directly access the filesystem or spawn processes, and warns
-that privileged APIs must be exposed only through narrow, validated channels:
+Packaging WaterLily in Electron does not automatically sandbox Python. The
+implemented UI renderer independently uses Electron's Chromium process sandbox,
+`contextIsolation`, no Node integration, and a private custom protocol. It has
+no preload bridge or direct filesystem/process API. Electron documents that
+sandboxed renderers cannot directly access the filesystem or spawn processes,
+and warns that privileged APIs must be exposed only through narrow, validated
+channels:
 [process sandboxing](https://www.electronjs.org/docs/latest/tutorial/sandbox)
 and
 [security checklist](https://www.electronjs.org/docs/latest/tutorial/security).
 
-The desktop shell, local service, and code kernel are three different trust
-boundaries. Compromising a code kernel must not grant the service's database,
-credential, or general host permissions.
+The desktop build therefore leaves host Python unavailable by default. An
+advanced user can launch with `WATERLILY_DESKTOP_ENABLE_HOST_PYTHON=1`, but that
+is the same trusted host runner described above, not a stronger sandbox. The
+future desktop shell, local service, and Safe Python kernel must remain three
+different trust boundaries: compromising a code kernel must not grant the
+service's database, credentials, or general host permissions.

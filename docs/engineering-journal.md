@@ -757,3 +757,71 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 - Production build, strict type checking, lint, formatting, and ZIP integrity
   checks pass. No live provider request was needed because provider transport
   and credentials were not changed.
+
+## 2026-08-17 — Installable desktop alpha
+
+### Implemented
+
+- Added an Electron 43 shell and Forge packaging workspace. The sandboxed,
+  context-isolated BrowserWindow loads the production client from a private
+  `waterlily://app` origin with no preload or Node integration. Static assets
+  and the application API share a containment-checked protocol router, so the
+  installed service opens no HTTP listener.
+- Extracted the complete local service into a reusable lifecycle factory. The
+  desktop app stores SQLite, attachments, credentials, and optional code
+  workspaces under Electron's per-user data directory and bundles every database
+  migration into the main-process build.
+- Denied permissions, webviews, new windows, and foreign navigation; added a
+  restrictive CSP and same-origin resource headers; burned current Electron
+  fuses to disable Node mode, Node options/inspection, file-protocol privileges,
+  and non-ASAR application loading.
+- Disabled trusted host Python in desktop packages by default. An explicit
+  `WATERLILY_DESKTOP_ENABLE_HOST_PYTHON=1` remains available for advanced users
+  who accept the documented host-access boundary.
+- Added an original WaterLily/graph application mark in PNG, multi-resolution
+  ICO, and ICNS formats. Forge now creates a branded Debian package, Windows
+  Squirrel artifacts, and macOS DMG/ZIP targets.
+- Added a lockfile-derived production staging step that removes workspace
+  symlinks and development sources. A GitHub matrix packages and smoke-tests
+  Linux x64, Windows x64, and macOS arm64, retains artifacts for seven days, and
+  creates only a draft release for unsigned `v*` tags.
+
+### Defects caught and corrected during verification
+
+- Forge 7 still names a Git-pinned Electron `node-gyp` fork that pnpm 11 blocks
+  as an undeclared exotic subdependency. The identical published version is
+  narrowly overridden instead of disabling pnpm's supply-chain protection.
+- Directly packaging a pnpm monorepo made Forge crawl workspace symlinks and
+  fail on native transitive modules. The maker now consumes pnpm's portable,
+  dedicated-lockfile deploy output with exact production versions.
+- Enabling the browser-specific V8 snapshot fuse without shipping Electron's
+  optional snapshot made the first executable abort before startup. The fuse is
+  deliberately off; the other hardening fuses remain strict and the real
+  packaged binary boots.
+- The first Debian maker inferred the scoped workspace name as its executable.
+  Explicit package, binary, product, section, launcher, and icon metadata now
+  produce a valid `waterlily` installation.
+- Vitest initially discovered the Playwright packaged-app specification and a
+  generated staging copy. The unit suite is now explicitly scoped to
+  `test/**/*.test.ts`, and the deploy manifest ships only assets, production
+  output, and Forge configuration.
+
+### Verification evidence
+
+- `pnpm check`: all 39 lint, typecheck, build-prerequisite, and deterministic
+  test tasks pass across ten workspaces.
+- `pnpm test:coverage`: all 19 tasks pass. The desktop protocol router reaches
+  97.14% statements, 89.47% branches, 100% functions, and 96.96% lines without
+  lowering any existing package gate.
+- `pnpm build`: all ten production builds pass; the Electron main bundle is
+  121.8 kB before its renderer and runtime are packaged.
+- The packaged Playwright test launches the fused production executable,
+  verifies `waterlily://app/`, the sample graph and health API, absent Node
+  globals, private SQLite creation and permissions, and default rejection of
+  host Python.
+- Forge produces `waterlily_0.1.0_amd64.deb` (108,394,264 bytes). `dpkg-deb`
+  verifies its dependencies, application launcher, desktop entry, icon, ASAR,
+  and native SQLite payload; its local SHA-256 is
+  `fa2f4816cd0eeec8dda912c59f55551f6e0fda9bcf3816c4d87877768188dce6`.
+- The cross-platform workflow is syntax-checked locally. Windows/macOS maker
+  execution remains to be verified by its first GitHub-hosted matrix run.

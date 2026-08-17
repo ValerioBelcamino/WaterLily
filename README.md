@@ -126,13 +126,30 @@ state. Neither format includes API keys. The archive contract is specified in
 
 ## Desktop releases
 
-Yes, WaterLily can become a normal one-click desktop application whose users do
-not install Node.js, Python, or pnpm. The lowest-risk first release is an
-Electron wrapper around the existing TypeScript UI and local service, with the
-runtime, SQLite module, and safe WebAssembly Python mode bundled into signed
-installers. The release plan and its security gates are in
-[`docs/desktop-distribution.md`](docs/desktop-distribution.md). This packaging
-work is planned; the current alpha still uses the developer quick start below.
+WaterLily now builds as a normal desktop application. Electron, the production
+React client, SQLite, migrations, and the local service are bundled; users do
+not install Node.js, pnpm, or SQLite. Application data is stored in Electron's
+per-user app-data directory, not beside the executable, and no API key or `.env`
+file is included in a package.
+
+Build and smoke-test the application for your current platform:
+
+```sh
+corepack pnpm make:desktop
+corepack pnpm test:desktop
+```
+
+Linux produces `waterlily_0.1.0_amd64.deb`; Windows produces a Squirrel Setup
+executable and NuGet package; macOS produces a DMG and ZIP. Generated files live
+under `apps/desktop/.package/out` and are ignored by Git.
+
+The **Desktop packages** GitHub workflow builds all three platforms on demand. A
+`v*` tag also creates a draft release. The draft is deliberately not published
+automatically: Windows and macOS packages are unsigned until signing
+certificates and repository secrets are configured, so those operating systems
+will warn or block ordinary users. The exact commands, trust boundaries, and
+remaining release gates are in
+[`docs/desktop-distribution.md`](docs/desktop-distribution.md).
 
 ## Architecture
 
@@ -158,6 +175,7 @@ web ──► api-contract ◄── local service ──► providers
 | `packages/api-contract`   | Strict browser/service request and stream validation       |
 | `apps/server`             | Loopback persistence and provider boundary                 |
 | `apps/web`                | Canvas, focus view, operations, autosave, and streaming UI |
+| `apps/desktop`            | Sandboxed Electron shell and cross-platform installers     |
 
 Design decisions live in [`docs/rfcs`](docs/rfcs), and verified implementation
 history lives in the [`engineering journal`](docs/engineering-journal.md).
@@ -171,6 +189,8 @@ corepack pnpm test:coverage
 corepack pnpm build
 corepack pnpm exec playwright install chromium
 corepack pnpm test:e2e
+corepack pnpm make:desktop
+corepack pnpm test:desktop
 # Optional and billable; loads the ignored root .env file.
 corepack pnpm test:live:deepseek
 ```
@@ -208,8 +228,11 @@ details.
   those profiles currently default to no native-file support.
 - Imported graphs merge into the active workspace. A multi-document workspace
   browser and graph renaming flow are still planned.
-- Browser visual-regression coverage, a safe WebAssembly code runner, and
-  packaged desktop distribution remain public-alpha work.
+- Browser visual-regression coverage, a safe WebAssembly code runner, signed
+  desktop releases, OS-keychain credentials, and automatic updates remain
+  public-alpha work. Trusted host Python is disabled by default in desktop
+  packages; set `WATERLILY_DESKTOP_ENABLE_HOST_PYTHON=1` only when you accept
+  the host-access warning in [`docs/sandboxing.md`](docs/sandboxing.md).
 
 ## Contributing
 
