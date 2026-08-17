@@ -5,7 +5,9 @@ packages:
 nodeLinker: hoisted
 
 allowBuilds:
-  better-sqlite3: true
+  # better-sqlite3 ships the desktop targets we support as prebuilt binaries.
+  # Skipping node-gyp keeps clean installs portable across hosted runners.
+  better-sqlite3: false
   electron-winstaller: true
   esbuild: false
   fs-xattr: true

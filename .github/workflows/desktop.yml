@@ -49,13 +49,13 @@ jobs:
             executable: apps/desktop/.package/out/WaterLily-darwin-arm64/WaterLily.app/Contents/MacOS/waterlily
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Enable Corepack
         run: corepack enable
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -76,6 +76,14 @@ jobs:
       - name: Build platform installer
         run: pnpm --filter @waterlily/desktop make
 
+      # The .deb installer applies these production permissions automatically.
+      # The smoke test launches Forge's unpacked staging directory directly.
+      - name: Configure Chromium sandbox for Linux smoke test
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root apps/desktop/.package/out/WaterLily-linux-x64/chrome-sandbox
+          sudo chmod 4755 apps/desktop/.package/out/WaterLily-linux-x64/chrome-sandbox
+
       - name: Smoke-test packaged Linux app
         if: runner.os == 'Linux'
         env:
@@ -93,7 +101,7 @@ jobs:
         run: pnpm --filter @waterlily/desktop test:packaged
 
       - name: Upload installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: apps/desktop/.package/out/make/**
@@ -111,7 +119,7 @@ jobs:
       contents: write
     steps:
       - name: Download platform installers
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
