@@ -58,7 +58,9 @@ export function createNodeServer(
       const request = new Request(
         new URL(incoming.url ?? '/', `http://${authority}`),
         {
-          ...(requestBody === undefined ? {} : { body: requestBody }),
+          ...(requestBody === undefined
+            ? {}
+            : { body: Uint8Array.from(requestBody).buffer }),
           headers: Object.fromEntries(
             Object.entries(incoming.headers).flatMap(([key, value]) =>
               value === undefined

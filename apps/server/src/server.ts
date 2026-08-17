@@ -429,7 +429,7 @@ export function createWaterLilyHandler(
         const attachment = resolved.attachments.read(attachmentId);
         if (attachment === null)
           throw new HttpError(404, 'Attachment not found');
-        return new Response(attachment.bytes, {
+        return new Response(Uint8Array.from(attachment.bytes).buffer, {
           headers: {
             ...SECURITY_HEADERS,
             'content-length': String(attachment.descriptor.size),
