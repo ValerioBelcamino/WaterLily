@@ -69,6 +69,12 @@ const config = {
       version: FuseVersion.V1,
     } satisfies FuseConfig),
   ],
+  // better-sqlite3 13 ships N-API binaries for every supported desktop target.
+  // Rebuilding it is unnecessary and couples packaging to host compiler
+  // discovery; packaged-app smoke tests verify the shipped binary instead.
+  rebuildConfig: {
+    ignoreModules: ['better-sqlite3'],
+  },
 } satisfies ForgeConfig;
 
 export default config;
