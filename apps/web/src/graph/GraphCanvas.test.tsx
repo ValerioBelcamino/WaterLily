@@ -23,6 +23,7 @@ interface FlowPropsCapture {
     node: WaterLilyFlowNode,
   ) => void;
   readonly onNodeDragStop: (event: unknown, node: WaterLilyFlowNode) => void;
+  readonly onNodesChange: ReactFlowModule.OnNodesChange<WaterLilyFlowNode>;
   readonly onPaneClick: () => void;
 }
 
@@ -227,6 +228,79 @@ describe('GraphCanvas', () => {
     expect(
       flow.edges.find((edge) => edge.id === 'edge-answer-note'),
     ).toMatchObject({ animated: false, data: { flowState: 'inactive' } });
+  });
+
+  it('retains measured dimensions across controlled graph projections', async () => {
+    renderCanvas();
+    const flow = capture.flow;
+    expect(flow).toBeDefined();
+    if (flow === undefined) return;
+
+    act(() => {
+      flow.onNodesChange([
+        {
+          dimensions: { height: 172, width: 246 },
+          id: 'node-answer',
+          type: 'dimensions',
+        },
+      ]);
+    });
+
+    await waitFor(() => {
+      expect(
+        capture.flow?.nodes.find((node) => node.id === 'node-answer')?.measured,
+      ).toEqual({ height: 172, width: 246 });
+    });
+
+    act(() => {
+      capture.flow?.onNodesChange([
+        {
+          dimensions: { height: 172, width: 246 },
+          id: 'node-answer',
+          type: 'dimensions',
+        },
+        {
+          dimensions: { height: 172, width: 248 },
+          id: 'node-answer',
+          type: 'dimensions',
+        },
+      ]);
+    });
+    await waitFor(() => {
+      expect(
+        capture.flow?.nodes.find((node) => node.id === 'node-answer')?.measured,
+      ).toEqual({ height: 172, width: 248 });
+    });
+
+    act(() => {
+      useWaterLilyStore.getState().selectNode('node-answer');
+    });
+    await waitFor(() => {
+      expect(
+        capture.flow?.nodes.find((node) => node.id === 'node-answer'),
+      ).toMatchObject({
+        measured: { height: 172, width: 248 },
+        selected: true,
+      });
+    });
+
+    act(() => {
+      capture.flow?.onNodesChange([
+        { id: 'node-answer', type: 'remove' },
+        { id: 'missing-node', type: 'remove' },
+        {
+          dragging: true,
+          id: 'node-answer',
+          position: { x: 80, y: 90 },
+          type: 'position',
+        },
+      ]);
+    });
+    await waitFor(() => {
+      expect(
+        capture.flow?.nodes.find((node) => node.id === 'node-answer')?.measured,
+      ).toBeUndefined();
+    });
   });
 
   it('drops text files at canvas coordinates and connects them to selection', async () => {

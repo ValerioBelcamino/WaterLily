@@ -58,6 +58,8 @@ describe('graph view model', () => {
         role: 'assistant',
         title: 'Mechanism overview',
       },
+      initialHeight: 150,
+      initialWidth: 246,
       position: { x: 41, y: 73 },
       selected: true,
       type: 'conversation',

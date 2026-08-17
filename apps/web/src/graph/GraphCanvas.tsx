@@ -7,13 +7,21 @@ import {
   type ReactFlowInstance,
   type NodeMouseHandler,
   type OnNodeDrag,
+  type OnNodesChange,
 } from '@xyflow/react';
 import type { GraphSnapshot } from '@waterlily/domain';
 import type {
   AttachmentDescriptor,
   ModelDescriptor,
 } from '@waterlily/api-contract';
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react';
 
 import { prepareDroppedFiles } from '../files/fileDrop';
 import { attachmentCompatibilityByNode } from '../files/compatibility';
@@ -65,6 +73,11 @@ export function GraphCanvas({
   const flowInstance = useRef<ReactFlowInstance<WaterLilyFlowNode> | null>(
     null,
   );
+  const [nodeMeasurements, setNodeMeasurements] = useState<
+    Readonly<
+      Record<string, { readonly height: number; readonly width: number }>
+    >
+  >({});
   const addFileContexts = useWaterLilyStore((state) => state.addFileContexts);
   const positions = useWaterLilyStore((state) => state.positions);
   const contextSelections = useWaterLilyStore(
@@ -127,16 +140,53 @@ export function GraphCanvas({
         groups,
         positions,
         selectedNodeIds,
+      }).map((node) => {
+        const measured = nodeMeasurements[node.id];
+        return measured === undefined ? node : { ...node, measured };
       }),
     [
       contextSelections,
       attachmentCompatibility,
       graph,
       groups,
+      nodeMeasurements,
       positions,
       selectedNodeIds,
       visibleFlow,
     ],
+  );
+  const handleNodesChange = useCallback<OnNodesChange<WaterLilyFlowNode>>(
+    (changes) => {
+      setNodeMeasurements((current) => {
+        let next: Record<
+          string,
+          { readonly height: number; readonly width: number }
+        > | null = null;
+        for (const change of changes) {
+          if (change.type === 'dimensions' && change.dimensions !== undefined) {
+            const existing = current[change.id];
+            if (
+              existing?.height !== change.dimensions.height ||
+              existing.width !== change.dimensions.width
+            ) {
+              next ??= { ...current };
+              next[change.id] = change.dimensions;
+            }
+          } else if (
+            change.type === 'remove' &&
+            current[change.id] !== undefined
+          ) {
+            next = Object.fromEntries(
+              Object.entries(next ?? current).filter(
+                ([nodeId]) => nodeId !== change.id,
+              ),
+            );
+          }
+        }
+        return next ?? current;
+      });
+    },
+    [],
   );
   const edges = useMemo(
     () => toFlowEdges(graph, visibleFlow, incompatibleAttachmentNodeIds),
@@ -277,6 +327,7 @@ export function GraphCanvas({
         nodes={nodes}
         nodesConnectable={false}
         nodeTypes={nodeTypes}
+        onNodesChange={handleNodesChange}
         onInit={(instance) => {
           flowInstance.current = instance;
         }}

@@ -12,7 +12,9 @@ export default defineConfig({
     },
   ],
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
-  retries: process.env.CI ? 2 : 0,
+  // This scenario intentionally mutates a persistent graph. Retrying against
+  // the same web-server database would not be an isolated second attempt.
+  retries: 0,
   testDir: './e2e',
   timeout: 45_000,
   use: {
@@ -35,7 +37,7 @@ export default defineConfig({
       url: 'http://127.0.0.1:4317/api/health',
     },
     {
-      command: 'corepack pnpm dev:web',
+      command: 'corepack pnpm --filter @waterlily/web preview',
       reuseExistingServer: false,
       timeout: 30_000,
       url: 'http://127.0.0.1:4173',

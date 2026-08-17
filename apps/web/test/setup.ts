@@ -22,3 +22,8 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
   configurable: true,
   value: ResizeObserverStub,
 });
+
+Object.defineProperty(globalThis.SVGElement.prototype, 'getBBox', {
+  configurable: true,
+  value: () => new DOMRect(0, 0, 0, 0),
+});

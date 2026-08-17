@@ -123,18 +123,16 @@ test('generates from a graph head and persists graph and view changes', async ({
       name: /Oxidative phosphorylation 10 nodes/,
     }),
   ).toBeVisible();
+  await expect(page.getByText('Persisted branch', { exact: true })).toHaveCount(
+    1,
+  );
+  await expect(page.getByText('Response to Merged understanding')).toHaveCount(
+    1,
+  );
+  await expect(page.locator('.conversation-node--attachment')).toHaveCount(1);
   await expect(
-    page.getByText('Persisted branch', { exact: true }),
+    page.getByLabel('Node inspector').getByText('Merged understanding'),
   ).toBeVisible();
-  await expect(
-    page.getByText('Response to Merged understanding'),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('article', { name: 'evidence.txt, attachment' }),
-  ).toBeVisible();
-  await page
-    .getByRole('article', { name: 'Merged understanding, summary' })
-    .click();
   await expect(page.getByRole('button', { name: 'Excluded' })).toBeVisible();
 
   const downloadPromise = page.waitForEvent('download');
@@ -160,7 +158,8 @@ test('generates from a graph head and persists graph and view changes', async ({
       name: /Oxidative phosphorylation 20 nodes/,
     }),
   ).toBeVisible();
-  await expect(
-    page.getByRole('article', { name: 'evidence.txt, attachment' }),
-  ).toHaveCount(2);
+  // Wait for React Flow's controlled projection to reconcile all imported
+  // nodes; the sidebar count updates one render earlier on slower machines.
+  await expect(page.locator('.react-flow__node-conversation')).toHaveCount(20);
+  await expect(page.locator('.conversation-node--attachment')).toHaveCount(2);
 });

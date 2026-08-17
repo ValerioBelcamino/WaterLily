@@ -11,7 +11,7 @@ import {
   type ContextHead,
   type ContextSelection,
 } from '@waterlily/context-engine';
-import { MarkerType, type Edge, type Node } from '@xyflow/react';
+import { MarkerType, Position, type Edge, type Node } from '@xyflow/react';
 
 import type { AttachmentCompatibility } from '../files/compatibility';
 
@@ -66,6 +66,7 @@ export interface FlowProjectionOptions {
 
 const NODE_WIDTH = 246;
 const NODE_HEIGHT_ESTIMATE = 150;
+const HANDLE_SIZE = 9;
 const GROUP_PADDING_X = 30;
 const GROUP_PADDING_TOP = 48;
 const GROUP_PADDING_BOTTOM = 28;
@@ -317,7 +318,32 @@ export function toFlowNodes(
         role: node.role,
         title: nodeTitle(graph, id),
       },
+      handles: [
+        {
+          height: HANDLE_SIZE,
+          id: null,
+          position: Position.Left,
+          type: 'target',
+          width: HANDLE_SIZE,
+          x: -HANDLE_SIZE / 2,
+          y: (NODE_HEIGHT_ESTIMATE - HANDLE_SIZE) / 2,
+        },
+        {
+          height: HANDLE_SIZE,
+          id: null,
+          position: Position.Right,
+          type: 'source',
+          width: HANDLE_SIZE,
+          x: NODE_WIDTH - HANDLE_SIZE / 2,
+          y: (NODE_HEIGHT_ESTIMATE - HANDLE_SIZE) / 2,
+        },
+      ],
       id,
+      // React Flow otherwise hides a freshly projected node until its
+      // ResizeObserver reports dimensions. Supplying the layout estimate keeps
+      // controlled graph updates visible while the exact height is measured.
+      initialHeight: NODE_HEIGHT_ESTIMATE,
+      initialWidth: NODE_WIDTH,
       ...(parentId === undefined
         ? {}
         : { expandParent: true, extent: 'parent' as const, parentId }),
