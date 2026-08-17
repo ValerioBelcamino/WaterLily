@@ -18,13 +18,41 @@ describe('provider configuration', () => {
         available: false,
         defaultModel: 'deepseek-v4-flash',
         id: 'deepseek',
+        models: [
+          {
+            capabilities: {
+              inputExtensions: [],
+              inputMimeTypes: [],
+              maxFileBytes: null,
+              nativeFiles: false,
+            },
+            id: 'deepseek-v4-flash',
+            name: 'deepseek-v4-flash',
+          },
+        ],
         name: 'DeepSeek',
+        providerType: 'deepseek',
+        source: 'environment',
       },
       {
         available: false,
         defaultModel: 'local-model',
         id: 'local-openai-compatible',
+        models: [
+          {
+            capabilities: {
+              inputExtensions: [],
+              inputMimeTypes: [],
+              maxFileBytes: null,
+              nativeFiles: false,
+            },
+            id: 'local-model',
+            name: 'local-model',
+          },
+        ],
         name: 'Local OpenAI-compatible model',
+        providerType: 'openai-compatible',
+        source: 'environment',
       },
     ]);
     expect(JSON.stringify(providers)).not.toContain('apiKey');
@@ -48,6 +76,35 @@ describe('provider configuration', () => {
     );
     expect(JSON.stringify(providers)).not.toContain('server-only-key');
     expect(JSON.stringify(providers)).not.toContain('local-key');
+  });
+
+  it('registers native-file OpenAI only when credentials and storage exist', () => {
+    const attachments = {
+      get: vi.fn(() => ({
+        bytes: new Uint8Array([1]),
+        mediaType: 'application/pdf',
+        name: 'paper.pdf',
+      })),
+      put: vi.fn(() => {
+        throw new Error('unused');
+      }),
+    };
+    expect(
+      configuredProviders({ OPENAI_API_KEY: 'secret' }).some(
+        ({ descriptor }) => descriptor.id === 'openai',
+      ),
+    ).toBe(false);
+    const providers = configuredProviders(
+      { OPENAI_API_KEY: 'secret' },
+      attachments,
+    );
+    expect(providers[0]?.descriptor).toMatchObject({
+      defaultModel: 'gpt-5.6-terra',
+      id: 'openai',
+    });
+    expect(providers[0]?.descriptor.models[0]).toMatchObject({
+      capabilities: { nativeFiles: true },
+    });
   });
 
   it('resolves credentials only inside the provider request boundary', async () => {

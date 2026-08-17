@@ -1,9 +1,15 @@
 import {
   createDeepSeekProvider,
   createOpenAICompatibleProvider,
+  createOpenAIResponsesProvider,
 } from '@waterlily/providers';
 
-import type { RegisteredProvider } from './types.js';
+import {
+  NO_FILES,
+  OPENAI_FILE_CAPABILITIES,
+  OPENAI_MODELS,
+} from './credentials.js';
+import type { AttachmentStore, RegisteredProvider } from './types.js';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -17,6 +23,7 @@ function valueOr(value: string | undefined, fallback: string): string {
 
 export function configuredProviders(
   environment: Environment,
+  attachments?: AttachmentStore,
 ): readonly RegisteredProvider[] {
   const deepSeekKey = nonBlank(environment.DEEPSEEK_API_KEY);
   const deepSeekBaseUrl = nonBlank(environment.DEEPSEEK_BASE_URL);
@@ -29,7 +36,16 @@ export function configuredProviders(
       available: deepSeekKey !== undefined && deepSeekKey.length > 0,
       defaultModel: deepSeekModel,
       id: 'deepseek',
+      models: [
+        {
+          capabilities: NO_FILES,
+          id: deepSeekModel,
+          name: deepSeekModel,
+        },
+      ],
       name: 'DeepSeek',
+      providerType: 'deepseek',
+      source: 'environment',
     },
     ...(deepSeekKey === undefined || deepSeekKey.length === 0
       ? {}
@@ -50,7 +66,10 @@ export function configuredProviders(
       available: localBaseUrl !== undefined && localBaseUrl.length > 0,
       defaultModel: localModel,
       id: 'local-openai-compatible',
+      models: [{ capabilities: NO_FILES, id: localModel, name: localModel }],
       name: 'Local OpenAI-compatible model',
+      providerType: 'openai-compatible',
+      source: 'environment',
     },
     ...(localBaseUrl === undefined || localBaseUrl.length === 0
       ? {}
@@ -64,5 +83,30 @@ export function configuredProviders(
           }),
         }),
   };
-  return [deepSeek, local];
+  const openAIKey = nonBlank(environment.OPENAI_API_KEY);
+  const openAI: RegisteredProvider | null =
+    openAIKey === undefined || attachments === undefined
+      ? null
+      : {
+          descriptor: {
+            available: true,
+            defaultModel: 'gpt-5.6-terra',
+            id: 'openai',
+            models: OPENAI_MODELS.map((model) => ({
+              capabilities: OPENAI_FILE_CAPABILITIES,
+              id: model.id,
+              name: model.name,
+            })),
+            name: 'OpenAI environment',
+            providerType: 'openai',
+            source: 'environment',
+          },
+          provider: createOpenAIResponsesProvider({
+            apiKey: () => environment.OPENAI_API_KEY,
+            attachmentLoader: (id) => Promise.resolve(attachments.get(id)),
+            id: 'openai',
+            name: 'OpenAI environment',
+          }),
+        };
+  return openAI === null ? [deepSeek, local] : [openAI, deepSeek, local];
 }

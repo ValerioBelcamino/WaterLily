@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 
 import {
   validateWorkspaceState,
@@ -9,12 +10,45 @@ import { openGraphDatabase, WorkspaceRepository } from '@waterlily/database';
 import type { JsonValue } from '@waterlily/domain';
 
 import { configuredProviders } from './config.js';
+import { FileAttachmentStore } from './attachments.js';
+import { CredentialProviderRegistry } from './credentials.js';
 import { createNodeServer } from './nodeServer.js';
+import { PythonRunner } from './pythonRunner.js';
 import { createWaterLilyHandler } from './server.js';
 import type { WorkspaceStore } from './types.js';
 
 const databasePath = resolve(
   process.env.WATERLILY_DATABASE_PATH ?? '.data/waterlily.sqlite',
+);
+const dataDirectory = dirname(databasePath);
+const attachments = new FileAttachmentStore(
+  resolve(
+    process.env.WATERLILY_ATTACHMENTS_PATH ??
+      join(dataDirectory, 'attachments'),
+  ),
+);
+const credentialsPath = resolve(
+  process.env.WATERLILY_CREDENTIALS_PATH ??
+    join(
+      process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'),
+      'waterlily',
+      'credentials.json',
+    ),
+);
+const credentialProviders = new CredentialProviderRegistry({
+  attachments,
+  path: credentialsPath,
+});
+const codeRunner = new PythonRunner(
+  resolve(
+    process.env.WATERLILY_PYTHON_WORKSPACES_PATH ??
+      join(dataDirectory, 'python'),
+  ),
+  {
+    ...(process.env.WATERLILY_PYTHON_EXECUTABLE === undefined
+      ? {}
+      : { executable: process.env.WATERLILY_PYTHON_EXECUTABLE }),
+  },
 );
 mkdirSync(dirname(databasePath), { recursive: true });
 const database = openGraphDatabase(databasePath);
@@ -45,7 +79,13 @@ const store: WorkspaceStore = {
   },
 };
 const handler = createWaterLilyHandler({
-  providers: configuredProviders(process.env),
+  attachments,
+  codeRunner,
+  providerProfiles: credentialProviders,
+  providers: () => [
+    ...configuredProviders(process.env, attachments),
+    ...credentialProviders.registrations(),
+  ],
   workspaces: store,
 });
 const server = createNodeServer(handler);

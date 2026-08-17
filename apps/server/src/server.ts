@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import {
   ApiContractError,
+  parseCreateProviderProfileRequest,
   parseGenerationApiRequest,
+  parsePythonExecutionRequest,
   parseWorkspaceWriteRequest,
   serializeNdjson,
   type GenerationStreamItem,
@@ -71,8 +73,25 @@ async function readJson(request: Request, maxBytes: number): Promise<unknown> {
       .startsWith('application/json')
   )
     throw new HttpError(415, 'Content-Type must be application/json');
-  if (request.body === null)
-    throw new HttpError(400, 'A JSON body is required');
+  const bytes = await readBytes(request, maxBytes, 'A JSON body is required');
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch (cause) {
+    throw new HttpError(
+      400,
+      cause instanceof SyntaxError
+        ? 'Request body is not valid JSON'
+        : 'Request body is not valid UTF-8 JSON',
+    );
+  }
+}
+
+async function readBytes(
+  request: Request,
+  maxBytes: number,
+  missingMessage = 'A request body is required',
+): Promise<Uint8Array> {
+  if (request.body === null) throw new HttpError(400, missingMessage);
   const reader =
     request.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const chunks: Uint8Array[] = [];
@@ -93,16 +112,7 @@ async function readJson(request: Request, maxBytes: number): Promise<unknown> {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  try {
-    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } catch (cause) {
-    throw new HttpError(
-      400,
-      cause instanceof SyntaxError
-        ? 'Request body is not valid JSON'
-        : 'Request body is not valid UTF-8 JSON',
-    );
-  }
+  return bytes;
 }
 
 function graphIdFromPath(pathname: string): string | null {
@@ -113,6 +123,29 @@ function graphIdFromPath(pathname: string): string | null {
   } catch {
     throw new HttpError(400, 'Workspace path is malformed');
   }
+}
+
+function providerProfileIdFromPath(pathname: string): string | null {
+  const match = /^\/api\/provider-profiles\/([^/]+)$/u.exec(pathname);
+  if (match === null) return null;
+  try {
+    return decodeURIComponent(match[1] as string);
+  } catch {
+    throw new HttpError(400, 'Provider profile path is malformed');
+  }
+}
+
+function providerRegistrations(
+  providers: WaterLilyHandlerOptions['providers'],
+): readonly RegisteredProvider[] {
+  return typeof providers === 'function' ? providers() : providers;
+}
+
+function hasControlCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0) as number;
+    return codePoint < 0x20 || codePoint === 0x7f;
+  });
 }
 
 function safeError(error: unknown): {
@@ -255,7 +288,7 @@ function generationResponse(
             workspace.graph,
           );
           const registration = findProvider(
-            options.providers,
+            providerRegistrations(options.providers),
             input.providerId,
           );
           const result = await runGeneration({
@@ -315,10 +348,84 @@ export function createWaterLilyHandler(
       const url = new URL(request.url);
       if (request.method === 'GET' && url.pathname === '/api/health')
         return jsonResponse({
-          providers: resolved.providers.map((provider) => provider.descriptor),
+          providers: providerRegistrations(resolved.providers).map(
+            (provider) => provider.descriptor,
+          ),
           service: 'waterlily',
           version: '0.0.0',
         });
+      if (
+        request.method === 'POST' &&
+        url.pathname === '/api/provider-profiles'
+      ) {
+        assertSameOrigin(request);
+        if (resolved.providerProfiles === undefined)
+          throw new HttpError(503, 'Provider profile storage is unavailable');
+        const input = parseCreateProviderProfileRequest(
+          await readJson(request, resolved.maxBodyBytes),
+        );
+        return jsonResponse(resolved.providerProfiles.create(input), 201);
+      }
+      const providerProfileId = providerProfileIdFromPath(url.pathname);
+      if (providerProfileId !== null && request.method === 'DELETE') {
+        assertSameOrigin(request);
+        if (resolved.providerProfiles === undefined)
+          throw new HttpError(503, 'Provider profile storage is unavailable');
+        if (!resolved.providerProfiles.remove(providerProfileId))
+          throw new HttpError(404, 'Provider profile not found');
+        return new Response(null, {
+          headers: SECURITY_HEADERS,
+          status: 204,
+        });
+      }
+      if (request.method === 'POST' && url.pathname === '/api/attachments') {
+        assertSameOrigin(request);
+        if (resolved.attachments === undefined)
+          throw new HttpError(503, 'Attachment storage is unavailable');
+        const encodedName = request.headers.get('x-waterlily-filename');
+        if (encodedName === null)
+          throw new HttpError(400, 'Attachment filename is required');
+        let name: string;
+        try {
+          name = decodeURIComponent(encodedName);
+        } catch {
+          throw new HttpError(400, 'Attachment filename is malformed');
+        }
+        if (
+          name.trim().length === 0 ||
+          name.length > 255 ||
+          hasControlCharacter(name)
+        )
+          throw new HttpError(400, 'Attachment filename is invalid');
+        const mediaType = request.headers
+          .get('content-type')
+          ?.split(';', 1)[0]
+          ?.trim()
+          .toLowerCase();
+        if (mediaType === undefined || mediaType.length === 0)
+          throw new HttpError(415, 'Attachment Content-Type is required');
+        const bytes = await readBytes(request, resolved.maxBodyBytes);
+        if (bytes.byteLength === 0)
+          throw new HttpError(400, 'Attachment cannot be empty');
+        return jsonResponse(
+          resolved.attachments.put({ bytes, mediaType, name }),
+          201,
+        );
+      }
+      if (
+        request.method === 'POST' &&
+        url.pathname === '/api/executions/python'
+      ) {
+        assertSameOrigin(request);
+        if (resolved.codeRunner === undefined)
+          throw new HttpError(503, 'Local Python execution is unavailable');
+        const input = parsePythonExecutionRequest(
+          await readJson(request, resolved.maxBodyBytes),
+        );
+        return jsonResponse(
+          await resolved.codeRunner.run(input, request.signal),
+        );
+      }
       const graphId = graphIdFromPath(url.pathname);
       if (graphId !== null && request.method === 'GET') {
         const workspace = resolved.workspaces.get(graphId);

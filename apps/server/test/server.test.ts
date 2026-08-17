@@ -21,7 +21,21 @@ const providerRegistration = {
     available: true,
     defaultModel: 'fixture-model',
     id: 'fixture',
+    models: [
+      {
+        capabilities: {
+          inputExtensions: [],
+          inputMimeTypes: [],
+          maxFileBytes: null,
+          nativeFiles: false,
+        },
+        id: 'fixture-model',
+        name: 'Fixture model',
+      },
+    ],
     name: 'Fixture',
+    providerType: 'openai-compatible',
+    source: 'environment',
   },
   provider: fixtureProvider(),
 } as const;
@@ -519,6 +533,221 @@ describe('WaterLily service handler', () => {
     await reader?.read();
     await reader?.cancel();
     await vi.waitFor(() => expect(sawAbort).toHaveBeenCalledOnce());
+  });
+
+  it('stores local provider profiles and supports dynamic health descriptors', async () => {
+    const create = vi.fn(() => ({
+      ...providerRegistration.descriptor,
+      id: 'profile-created',
+      source: 'stored' as const,
+    }));
+    const remove = vi.fn((id: string) => id === 'profile-created');
+    const dynamic = vi.fn(() => [providerRegistration]);
+    const handle = createWaterLilyHandler({
+      providerProfiles: { create, remove },
+      providers: dynamic,
+      workspaces: new MemoryStore(),
+    });
+    const profile = {
+      apiKey: 'local-secret',
+      baseUrl: null,
+      label: 'Study key',
+      models: [],
+      providerType: 'openai' as const,
+    };
+    const created = await handle(
+      jsonRequest('/api/provider-profiles', 'POST', profile),
+    );
+    expect(created.status).toBe(201);
+    expect(await created.json()).toMatchObject({ id: 'profile-created' });
+    expect(create).toHaveBeenCalledWith(profile);
+    expect(
+      (
+        await handle(
+          new Request(
+            'http://127.0.0.1/api/provider-profiles/profile-created',
+            { method: 'DELETE' },
+          ),
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await handle(
+          new Request('http://127.0.0.1/api/provider-profiles/missing', {
+            method: 'DELETE',
+          }),
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await handle(
+          new Request('http://127.0.0.1/api/provider-profiles/%E0%A4%A', {
+            method: 'DELETE',
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    await handle(new Request('http://127.0.0.1/api/health'));
+    expect(dynamic).toHaveBeenCalled();
+
+    const unavailable = createWaterLilyHandler({
+      providers: [],
+      workspaces: new MemoryStore(),
+    });
+    expect(
+      (
+        await unavailable(
+          jsonRequest('/api/provider-profiles', 'POST', profile),
+        )
+      ).status,
+    ).toBe(503);
+    expect(
+      (
+        await unavailable(
+          new Request('http://127.0.0.1/api/provider-profiles/id', {
+            method: 'DELETE',
+          }),
+        )
+      ).status,
+    ).toBe(503);
+  });
+
+  it('uploads opaque attachments and validates their metadata boundary', async () => {
+    const put = vi.fn(() => ({
+      id: 'attachment-created',
+      mediaType: 'application/pdf',
+      name: 'paper.pdf',
+      sha256: 'a'.repeat(64),
+      size: 3,
+    }));
+    const handle = createWaterLilyHandler({
+      attachments: {
+        get() {
+          throw new Error('unused');
+        },
+        put,
+      },
+      providers: [],
+      workspaces: new MemoryStore(),
+    });
+    const upload = (headers: Record<string, string>, body: Uint8Array | null) =>
+      handle(
+        new Request('http://127.0.0.1/api/attachments', {
+          body,
+          headers,
+          method: 'POST',
+        }),
+      );
+    const response = await upload(
+      {
+        'content-type': 'application/pdf; charset=binary',
+        'x-waterlily-filename': encodeURIComponent('paper.pdf'),
+      },
+      new Uint8Array([1, 2, 3]),
+    );
+    expect(response.status).toBe(201);
+    expect(put).toHaveBeenCalledWith({
+      bytes: new Uint8Array([1, 2, 3]),
+      mediaType: 'application/pdf',
+      name: 'paper.pdf',
+    });
+    for (const invalid of [
+      upload({ 'content-type': 'text/plain' }, new Uint8Array([1])),
+      upload(
+        {
+          'content-type': 'text/plain',
+          'x-waterlily-filename': '%E0%A4%A',
+        },
+        new Uint8Array([1]),
+      ),
+      upload(
+        {
+          'content-type': 'text/plain',
+          'x-waterlily-filename': encodeURIComponent(' '),
+        },
+        new Uint8Array([1]),
+      ),
+      upload(
+        { 'x-waterlily-filename': encodeURIComponent('notes.txt') },
+        new Uint8Array([1]),
+      ),
+      upload(
+        {
+          'content-type': 'text/plain',
+          'x-waterlily-filename': encodeURIComponent('notes.txt'),
+        },
+        new Uint8Array(),
+      ),
+    ])
+      expect((await invalid).status).toBeGreaterThanOrEqual(400);
+
+    const unavailable = createWaterLilyHandler({
+      providers: [],
+      workspaces: new MemoryStore(),
+    });
+    expect(
+      (
+        await unavailable(
+          new Request('http://127.0.0.1/api/attachments', {
+            body: new Uint8Array([1]),
+            headers: {
+              'content-type': 'text/plain',
+              'x-waterlily-filename': encodeURIComponent('notes.txt'),
+            },
+            method: 'POST',
+          }),
+        )
+      ).status,
+    ).toBe(503);
+  });
+
+  it('runs validated Python requests through the configured local runner', async () => {
+    const run = vi.fn(() =>
+      Promise.resolve({
+        durationMilliseconds: 4,
+        exitCode: 0,
+        stderr: '',
+        stdout: '42\n',
+        timedOut: false,
+        truncated: false,
+      }),
+    );
+    const handle = createWaterLilyHandler({
+      codeRunner: { run },
+      providers: [],
+      workspaces: new MemoryStore(),
+    });
+    const input = {
+      cells: [{ nodeId: 'node-code', source: 'print(42)' }],
+      graphId: 'graph-server',
+    };
+    const response = await handle(
+      jsonRequest('/api/executions/python', 'POST', input),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ stdout: '42\n' });
+    expect(run).toHaveBeenCalledWith(input, expect.any(AbortSignal));
+
+    expect(
+      (
+        await handle(
+          jsonRequest('/api/executions/python', 'POST', {
+            cells: [],
+            graphId: 'graph-server',
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    const unavailable = createWaterLilyHandler({
+      providers: [],
+      workspaces: new MemoryStore(),
+    });
+    expect(
+      (await unavailable(jsonRequest('/api/executions/python', 'POST', input)))
+        .status,
+    ).toBe(503);
   });
 
   it('returns sanitized JSON for unknown routes and invalid API bodies', async () => {

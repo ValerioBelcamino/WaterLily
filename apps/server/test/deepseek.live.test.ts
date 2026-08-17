@@ -40,24 +40,13 @@ describe.skipIf(!runLive)('DeepSeek live application service', () => {
         new Request('http://127.0.0.1:4317/api/health'),
       );
       expect(health.status).toBe(200);
-      expect(await health.json()).toEqual({
-        providers: [
-          {
-            available: true,
-            defaultModel: process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash',
-            id: 'deepseek',
-            name: 'DeepSeek',
-          },
-          {
-            available: false,
-            defaultModel: 'local-model',
-            id: 'local-openai-compatible',
-            name: 'Local OpenAI-compatible model',
-          },
-        ],
+      const healthBody = await health.json();
+      expect(healthBody).toEqual({
+        providers: providers.map(({ descriptor }) => descriptor),
         service: 'waterlily',
         version: '0.0.0',
       });
+      expect(JSON.stringify(healthBody).includes(apiKey ?? '')).toBe(false);
 
       const request = generationRequest('deepseek');
       const response = await handler(
