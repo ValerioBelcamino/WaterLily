@@ -43,4 +43,34 @@ describe('embedded local service', () => {
     service.close();
     expect(() => service.close()).not.toThrow();
   });
+
+  it('can disable the trusted host-Python boundary', async () => {
+    const dataDirectory = mkdtempSync(join(tmpdir(), 'waterlily-service-'));
+    temporaryDirectories.push(dataDirectory);
+    const service = createLocalWaterLilyService({
+      dataDirectory,
+      enableHostPython: false,
+      environment: {},
+    });
+
+    const response = await service.handler(
+      new Request('waterlily://app/api/executions/python', {
+        body: '{}',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'waterlily://app',
+        },
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'HTTP_503',
+        message: 'Local Python execution is unavailable',
+      },
+    });
+    service.close();
+  });
 });

@@ -27,6 +27,7 @@ export interface LocalWaterLilyServiceOptions {
   readonly dataDirectory: string;
   readonly databasePath?: string;
   readonly environment?: Environment;
+  readonly enableHostPython?: boolean;
   readonly migrations?: readonly Migration[];
   readonly pythonExecutable?: string;
   readonly pythonWorkspacesPath?: string;
@@ -66,11 +67,14 @@ export function createLocalWaterLilyService(
     attachments,
     path: credentialsPath,
   });
-  const codeRunner = new PythonRunner(pythonWorkspacesPath, {
-    ...(options.pythonExecutable === undefined
-      ? {}
-      : { executable: options.pythonExecutable }),
-  });
+  const codeRunner =
+    options.enableHostPython === false
+      ? undefined
+      : new PythonRunner(pythonWorkspacesPath, {
+          ...(options.pythonExecutable === undefined
+            ? {}
+            : { executable: options.pythonExecutable }),
+        });
   const database = openGraphDatabase(databasePath, {
     ...(options.migrations === undefined
       ? {}
@@ -113,7 +117,7 @@ export function createLocalWaterLilyService(
     },
     handler: createWaterLilyHandler({
       attachments,
-      codeRunner,
+      ...(codeRunner === undefined ? {} : { codeRunner }),
       providerProfiles,
       providers: () => [
         ...configuredProviders(environment, attachments),
