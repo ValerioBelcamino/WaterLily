@@ -25,8 +25,21 @@ export type JsonValue =
 export interface TextContentBlock {
   readonly format: 'markdown' | 'plain';
   readonly id: string;
+  readonly template?: TextTemplate;
   readonly text: string;
   readonly type: 'text';
+}
+
+export interface TemplateBinding {
+  readonly name: string;
+  readonly sourceBlockId: string | null;
+  readonly sourceNodeId: string;
+  readonly sourceRevisionId: string;
+}
+
+export interface TextTemplate {
+  readonly bindings: readonly TemplateBinding[];
+  readonly version: 1;
 }
 
 export interface AttachmentContentBlock {
@@ -122,6 +135,33 @@ export interface ReviseNodeInput {
   readonly metadata?: Readonly<Record<string, JsonValue>>;
   readonly nodeId: string;
   readonly revisionId: string;
+}
+
+export interface ReviseTextBlockInput {
+  readonly blockId: string;
+  readonly createdAt: string;
+  readonly nodeId: string;
+  readonly revisionId: string;
+  readonly text: string;
+}
+
+export interface RemoveTemplateBindingInput {
+  readonly createdAt: string;
+  readonly name: string;
+  readonly nodeId: string;
+  readonly revisionId: string;
+  readonly targetBlockId: string;
+}
+
+export interface SetTemplateBindingInput {
+  readonly createdAt: string;
+  readonly name: string;
+  readonly nodeId: string;
+  readonly revisionId: string;
+  readonly sourceBlockId?: string | null;
+  readonly sourceNodeId: string;
+  readonly sourceRevisionId?: string;
+  readonly targetBlockId: string;
 }
 
 export interface ConnectContextInput {

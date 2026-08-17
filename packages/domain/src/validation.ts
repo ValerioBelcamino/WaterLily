@@ -9,7 +9,9 @@ import {
   type GraphSnapshot,
   type JsonValue,
   type NodeRevision,
+  type TemplateBinding,
 } from './types.js';
+import { extractTemplateVariables, TemplateError } from './templates.js';
 
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
@@ -65,8 +67,57 @@ function assertJsonValue(value: JsonValue, path: string): void {
   fail('INVALID_CONTENT', `${path} is not JSON-compatible`, { path });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function assertTemplateBinding(
+  value: unknown,
+  graph: GraphSnapshot,
+  path: string,
+): asserts value is TemplateBinding {
+  if (
+    !isRecord(value) ||
+    typeof value.name !== 'string' ||
+    typeof value.sourceNodeId !== 'string' ||
+    typeof value.sourceRevisionId !== 'string' ||
+    (value.sourceBlockId !== null && typeof value.sourceBlockId !== 'string')
+  ) {
+    fail('INVALID_CONTENT', `${path} is invalid`, { path });
+  }
+  const binding = value as unknown as TemplateBinding;
+  if (!/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/u.test(binding.name)) {
+    fail('INVALID_CONTENT', `${path}.name is invalid`, { path });
+  }
+  assertId(binding.sourceNodeId, `${path}.sourceNodeId`);
+  assertId(binding.sourceRevisionId, `${path}.sourceRevisionId`);
+  const source = graph.revisions[binding.sourceRevisionId];
+  if (source?.nodeId !== binding.sourceNodeId) {
+    fail('INVALID_CONTENT', `${path} references an invalid source revision`, {
+      path,
+    });
+  }
+  if (binding.sourceBlockId !== null) {
+    assertId(binding.sourceBlockId, `${path}.sourceBlockId`);
+    if (
+      !source.blocks.some(
+        (block) => block.type === 'text' && block.id === binding.sourceBlockId,
+      )
+    ) {
+      fail('INVALID_CONTENT', `${path} references a missing text block`, {
+        path,
+      });
+    }
+  } else if (!source.blocks.some((block) => block.type === 'text')) {
+    fail('INVALID_CONTENT', `${path} references a source with no text`, {
+      path,
+    });
+  }
+}
+
 function assertContentBlocks(
   blocks: readonly ContentBlock[],
+  graph: GraphSnapshot,
   path: string,
 ): void {
   const ids = new Set<string>();
@@ -87,6 +138,46 @@ function assertContentBlocks(
         fail('INVALID_CONTENT', `${blockPath}.format is unsupported`, {
           format: block.format,
         });
+      }
+      if (block.template !== undefined) {
+        const template: unknown = block.template;
+        if (
+          !isRecord(template) ||
+          template.version !== 1 ||
+          !Array.isArray(template.bindings)
+        ) {
+          fail('INVALID_CONTENT', `${blockPath}.template is unsupported`, {
+            path: blockPath,
+          });
+        }
+        let variables: readonly string[];
+        try {
+          variables = extractTemplateVariables(block.text);
+        } catch (cause) {
+          if (cause instanceof TemplateError) {
+            fail('INVALID_CONTENT', cause.message, { path: blockPath });
+          }
+          throw cause;
+        }
+        const names = new Set<string>();
+        for (const [bindingIndex, binding] of template.bindings.entries()) {
+          const bindingPath = `${blockPath}.template.bindings[${String(bindingIndex)}]`;
+          assertTemplateBinding(binding, graph, bindingPath);
+          if (names.has(binding.name)) {
+            fail('INVALID_CONTENT', `${blockPath} repeats a template binding`, {
+              name: binding.name,
+              path: blockPath,
+            });
+          }
+          names.add(binding.name);
+          if (!variables.includes(binding.name)) {
+            fail(
+              'INVALID_CONTENT',
+              `${blockPath} binds a variable absent from its template`,
+              { name: binding.name, path: blockPath },
+            );
+          }
+        }
       }
       continue;
     }
@@ -157,7 +248,7 @@ function assertRevision(revision: NodeRevision, graph: GraphSnapshot): void {
       revisionId: revision.id,
     });
   }
-  assertContentBlocks(revision.blocks, `revision.${revision.id}.blocks`);
+  assertContentBlocks(revision.blocks, graph, `revision.${revision.id}.blocks`);
   assertJsonValue(revision.metadata, `revision.${revision.id}.metadata`);
 }
 
@@ -258,6 +349,38 @@ function assertNoCausalCycle(graph: GraphSnapshot): void {
   }
 }
 
+function assertNoTemplateCycle(graph: GraphSnapshot): void {
+  const adjacency = new Map<string, string[]>();
+  for (const revisionId of Object.keys(graph.revisions)) {
+    adjacency.set(revisionId, []);
+  }
+  for (const revision of Object.values(graph.revisions)) {
+    for (const block of revision.blocks) {
+      if (block.type !== 'text' || block.template === undefined) continue;
+      for (const binding of block.template.bindings) {
+        adjacency.get(revision.id)?.push(binding.sourceRevisionId);
+      }
+    }
+  }
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (revisionId: string): void => {
+    if (visiting.has(revisionId)) {
+      fail('INVALID_CONTENT', 'Template bindings contain a cycle', {
+        revisionId,
+      });
+    }
+    if (visited.has(revisionId)) return;
+    visiting.add(revisionId);
+    for (const sourceRevisionId of adjacency.get(revisionId) ?? []) {
+      visit(sourceRevisionId);
+    }
+    visiting.delete(revisionId);
+    visited.add(revisionId);
+  };
+  for (const revisionId of adjacency.keys()) visit(revisionId);
+}
+
 function isTextFormat(value: unknown): value is 'markdown' | 'plain' {
   return value === 'markdown' || value === 'plain';
 }
@@ -331,4 +454,5 @@ export function validateGraph(graph: GraphSnapshot): void {
   }
 
   assertNoCausalCycle(graph);
+  assertNoTemplateCycle(graph);
 }

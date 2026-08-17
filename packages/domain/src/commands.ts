@@ -12,7 +12,12 @@ import {
   type JsonValue,
   type NodeRevision,
   type ReviseNodeInput,
+  type ReviseTextBlockInput,
+  type RemoveTemplateBindingInput,
+  type SetTemplateBindingInput,
+  type TextContentBlock,
 } from './types.js';
+import { extractTemplateVariables } from './templates.js';
 import { assertId, assertTimestamp, validateGraph } from './validation.js';
 
 function cloneBlocks(blocks: readonly ContentBlock[]): readonly ContentBlock[] {
@@ -163,6 +168,162 @@ export function reviseNode(
   };
   validateGraph(next);
   return next;
+}
+
+export function setTemplateBinding(
+  graph: GraphSnapshot,
+  input: SetTemplateBindingInput,
+): GraphSnapshot {
+  validateGraph(graph);
+  const node = assertNodeAvailable(graph, input.nodeId);
+  const current = graph.revisions[node.currentRevisionId] as NodeRevision;
+  const source = assertNodeAvailable(graph, input.sourceNodeId);
+  const sourceRevisionId = resolveSourceRevision(
+    graph,
+    source,
+    input.sourceRevisionId,
+  );
+  const sourceRevision = graph.revisions[sourceRevisionId] as NodeRevision;
+  const sourceBlockId = input.sourceBlockId ?? null;
+  if (
+    sourceBlockId !== null &&
+    !sourceRevision.blocks.some(
+      (block) => block.type === 'text' && block.id === sourceBlockId,
+    )
+  ) {
+    fail('INVALID_CONTENT', 'The binding source block is not text', {
+      sourceBlockId,
+    });
+  }
+
+  const targetBlock = current.blocks.find(
+    (block): block is TextContentBlock =>
+      block.id === input.targetBlockId && block.type === 'text',
+  );
+  if (targetBlock === undefined) {
+    fail('INVALID_CONTENT', 'The target template block is unavailable', {
+      targetBlockId: input.targetBlockId,
+    });
+  }
+  const blocks = current.blocks.map((block): ContentBlock => {
+    if (block.id !== input.targetBlockId || block.type !== 'text') return block;
+    const variables = extractTemplateVariables(block.text);
+    if (!variables.includes(input.name)) {
+      fail('INVALID_CONTENT', 'The target template has no matching variable', {
+        name: input.name,
+        targetBlockId: input.targetBlockId,
+      });
+    }
+    const bindings = [
+      ...(block.template?.bindings ?? []).filter(
+        (binding) => binding.name !== input.name,
+      ),
+      {
+        name: input.name,
+        sourceBlockId,
+        sourceNodeId: source.id,
+        sourceRevisionId,
+      },
+    ].sort((left, right) => left.name.localeCompare(right.name));
+    return {
+      ...block,
+      template: { bindings, version: 1 },
+    } satisfies TextContentBlock;
+  });
+  return reviseNode(graph, {
+    blocks,
+    createdAt: input.createdAt,
+    metadata: current.metadata,
+    nodeId: input.nodeId,
+    revisionId: input.revisionId,
+  });
+}
+
+function currentRevision(
+  graph: GraphSnapshot,
+  nodeId: string,
+): { readonly node: GraphNode; readonly revision: NodeRevision } {
+  const node = assertNodeAvailable(graph, nodeId);
+  const revision = graph.revisions[node.currentRevisionId] as NodeRevision;
+  return { node, revision };
+}
+
+export function reviseTextBlock(
+  graph: GraphSnapshot,
+  input: ReviseTextBlockInput,
+): GraphSnapshot {
+  validateGraph(graph);
+  const { revision } = currentRevision(graph, input.nodeId);
+  const variables = extractTemplateVariables(input.text);
+  const targetBlock = revision.blocks.find(
+    (block): block is TextContentBlock =>
+      block.id === input.blockId && block.type === 'text',
+  );
+  if (targetBlock === undefined) {
+    fail('INVALID_CONTENT', 'The editable text block is unavailable', {
+      blockId: input.blockId,
+    });
+  }
+  const blocks = revision.blocks.map((block): ContentBlock => {
+    if (block.id !== input.blockId || block.type !== 'text') return block;
+    return {
+      ...block,
+      template: {
+        bindings: (block.template?.bindings ?? []).filter((binding) =>
+          variables.includes(binding.name),
+        ),
+        version: 1,
+      },
+      text: input.text,
+    };
+  });
+  return reviseNode(graph, {
+    blocks,
+    createdAt: input.createdAt,
+    metadata: revision.metadata,
+    nodeId: input.nodeId,
+    revisionId: input.revisionId,
+  });
+}
+
+export function removeTemplateBinding(
+  graph: GraphSnapshot,
+  input: RemoveTemplateBindingInput,
+): GraphSnapshot {
+  validateGraph(graph);
+  const { revision } = currentRevision(graph, input.nodeId);
+  const targetBlock = revision.blocks.find(
+    (block): block is TextContentBlock =>
+      block.id === input.targetBlockId && block.type === 'text',
+  );
+  if (
+    !targetBlock?.template?.bindings.some(
+      (binding) => binding.name === input.name,
+    )
+  ) {
+    fail('INVALID_CONTENT', 'The template binding is unavailable', {
+      name: input.name,
+      targetBlockId: input.targetBlockId,
+    });
+  }
+  const blocks = revision.blocks.map((block): ContentBlock => {
+    if (block.id !== input.targetBlockId || block.type !== 'text') return block;
+    const bindings = block.template?.bindings ?? [];
+    return {
+      ...block,
+      template: {
+        bindings: bindings.filter((binding) => binding.name !== input.name),
+        version: 1,
+      },
+    };
+  });
+  return reviseNode(graph, {
+    blocks,
+    createdAt: input.createdAt,
+    metadata: revision.metadata,
+    nodeId: input.nodeId,
+    revisionId: input.revisionId,
+  });
 }
 
 export function connectContext(

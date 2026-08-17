@@ -4,7 +4,10 @@ export {
   connectReference,
   createGraph,
   createNode,
+  removeTemplateBinding,
   reviseNode,
+  reviseTextBlock,
+  setTemplateBinding,
 } from './commands.js';
 export {
   GRAPH_ERROR_CODES,
@@ -35,7 +38,21 @@ export {
   type ProvenanceEdge,
   type ProvenanceRelation,
   type ReferenceEdge,
+  type RemoveTemplateBindingInput,
   type ReviseNodeInput,
+  type ReviseTextBlockInput,
+  type SetTemplateBindingInput,
+  type TemplateBinding,
   type TextContentBlock,
+  type TextTemplate,
 } from './types.js';
+export {
+  extractTemplateVariables,
+  resolveRevisionBlocks,
+  resolveSelectedRevisionBlocks,
+  resolveTemplate,
+  TemplateError,
+  type ParsedTemplate,
+  type TemplateSegment,
+} from './templates.js';
 export { validateGraph } from './validation.js';
