@@ -100,17 +100,36 @@ const OPENAI_FILE_CAPABILITIES: ModelCapabilities = {
 };
 
 const OPENAI_MODELS = [
-  { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
-  { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra' },
-  { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna' },
+  {
+    contextWindowTokens: 1_050_000,
+    id: 'gpt-5.6-sol',
+    maxOutputTokens: 128_000,
+    name: 'GPT-5.6 Sol',
+  },
+  {
+    contextWindowTokens: 1_050_000,
+    id: 'gpt-5.6-terra',
+    maxOutputTokens: 128_000,
+    name: 'GPT-5.6 Terra',
+  },
+  {
+    contextWindowTokens: 1_050_000,
+    id: 'gpt-5.6-luna',
+    maxOutputTokens: 128_000,
+    name: 'GPT-5.6 Luna',
+  },
 ] as const;
 
 function modelDescriptor(
   id: string,
   capabilities: ModelCapabilities,
   name = id,
+  limits: {
+    readonly contextWindowTokens?: number;
+    readonly maxOutputTokens?: number;
+  } = {},
 ): ModelDescriptor {
-  return { capabilities, id, name };
+  return { capabilities, id, name, ...limits };
 }
 
 function validateStoredProfile(value: unknown): StoredProviderProfile {
@@ -199,7 +218,10 @@ export class CredentialProviderRegistry implements ProviderProfileStore {
     const models: readonly ModelDescriptor[] =
       profile.providerType === 'openai'
         ? OPENAI_MODELS.map((model) =>
-            modelDescriptor(model.id, OPENAI_FILE_CAPABILITIES, model.name),
+            modelDescriptor(model.id, OPENAI_FILE_CAPABILITIES, model.name, {
+              contextWindowTokens: model.contextWindowTokens,
+              maxOutputTokens: model.maxOutputTokens,
+            }),
           )
         : (profile.models.length === 0
             ? ['deepseek-chat', 'deepseek-reasoner']

@@ -16,6 +16,7 @@ import {
 } from '@waterlily/interchange';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { DEFAULT_OUTPUT_RESERVE_TOKENS } from '../useContextMeter';
 import {
   deriveActiveContextFlow,
   nodeTitle,
@@ -598,6 +599,15 @@ export function useWaterLilyService(
         const overrides = Object.entries(
           generationWorkspace.state.contextSelections,
         ).map(([nodeId, selection]) => ({ nodeId, selection }));
+        const outputReserveTokens = Math.min(
+          DEFAULT_OUTPUT_RESERVE_TOKENS,
+          model.maxOutputTokens ?? DEFAULT_OUTPUT_RESERVE_TOKENS,
+        );
+        const tokenBudget =
+          model.contextWindowTokens === undefined ||
+          model.contextWindowTokens === null
+            ? null
+            : Math.max(1, model.contextWindowTokens - outputReserveTokens);
         const flow = await deriveActiveContextFlow(
           generationWorkspace.graph,
           heads,
@@ -625,10 +635,17 @@ export function useWaterLilyService(
         setGeneration({ ...IDLE_GENERATION, status: 'streaming' });
         const result = await client.generate(
           {
-            context: { heads, overrides },
+            context: {
+              heads,
+              overrides,
+              ...(tokenBudget === null ? {} : { tokenBudget }),
+            },
             graphId: generationWorkspace.graph.id,
             providerId: provider.id,
-            request: { model: model.id },
+            request: {
+              maxOutputTokens: outputReserveTokens,
+              model: model.id,
+            },
             title: `Response to ${title}`,
           },
           (item: GenerationStreamItem) => {

@@ -2,9 +2,14 @@ import { FileJson2, X } from 'lucide-react';
 import { useEffect, useState, type SyntheticEvent } from 'react';
 
 export type OperationKind =
-  'branch' | 'code' | 'group' | 'import' | 'merge' | 'split';
+  'branch' | 'checkpoint' | 'code' | 'group' | 'import' | 'merge' | 'split';
 
 export type OperationSubmission =
+  | {
+      readonly kind: 'checkpoint';
+      readonly text: string;
+      readonly title: string | null;
+    }
   | {
       readonly kind: 'branch';
       readonly text: string;
@@ -48,6 +53,7 @@ export interface OperationDialogProps {
 
 const LABELS: Readonly<Record<OperationKind, string>> = {
   branch: 'Branch from node',
+  checkpoint: 'Create summary checkpoint',
   code: 'Add Python cell',
   group: 'Group selected nodes',
   import: 'Import WaterLily graph',
@@ -94,9 +100,13 @@ export function OperationDialog({
     event.preventDefault();
     setError(null);
     try {
-      if (kind === 'branch' || kind === 'merge') {
+      if (kind === 'branch' || kind === 'merge' || kind === 'checkpoint') {
         if (text.trim().length === 0)
-          throw new Error('Message cannot be blank.');
+          throw new Error(
+            kind === 'checkpoint'
+              ? 'Checkpoint summary cannot be blank.'
+              : 'Message cannot be blank.',
+          );
         await onSubmit({
           kind,
           text: text.trim(),
@@ -162,12 +172,12 @@ export function OperationDialog({
           </button>
         </header>
         <p className="operation-dialog__context">
-          {kind === 'merge' || kind === 'group'
+          {kind === 'merge' || kind === 'group' || kind === 'checkpoint'
             ? `${String(selectedCount)} selected nodes`
             : selectedTitle}
         </p>
         <form onSubmit={(event) => void submit(event)}>
-          {kind === 'branch' || kind === 'merge' ? (
+          {kind === 'branch' || kind === 'merge' || kind === 'checkpoint' ? (
             <>
               <label>
                 Node title <span>optional</span>
@@ -175,12 +185,16 @@ export function OperationDialog({
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder={
-                    kind === 'merge' ? 'Combined question' : 'Side question'
+                    kind === 'merge'
+                      ? 'Combined question'
+                      : kind === 'checkpoint'
+                        ? 'Chapter checkpoint'
+                        : 'Side question'
                   }
                 />
               </label>
               <label>
-                Message
+                {kind === 'checkpoint' ? 'Persistent summary' : 'Message'}
                 <textarea
                   autoFocus
                   required
@@ -189,11 +203,21 @@ export function OperationDialog({
                   placeholder={
                     kind === 'merge'
                       ? 'Ask a question using all selected branches…'
-                      : 'Ask a follow-up from this exact revision…'
+                      : kind === 'checkpoint'
+                        ? 'Write the compact understanding that future branches should start from…'
+                        : 'Ask a follow-up from this exact revision…'
                   }
                 />
               </label>
             </>
+          ) : null}
+          {kind === 'checkpoint' ? (
+            <small>
+              The selected revisions remain linked as provenance, but future
+              context starts from this editable summary instead of traversing
+              the full source tree. Variables use {'{{name}}'}; escape literal
+              braces with {'\\{{name}}'}.
+            </small>
           ) : null}
           {kind === 'code' ? (
             <>

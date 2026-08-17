@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@waterlily/api-contract": "workspace:*",
+    "@waterlily/context-engine": "workspace:*",
     "@waterlily/database": "workspace:*",
     "@waterlily/domain": "workspace:*",
     "@waterlily/providers": "workspace:*",

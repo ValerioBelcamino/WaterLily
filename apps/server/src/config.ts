@@ -94,7 +94,9 @@ export function configuredProviders(
             id: 'openai',
             models: OPENAI_MODELS.map((model) => ({
               capabilities: OPENAI_FILE_CAPABILITIES,
+              contextWindowTokens: model.contextWindowTokens,
               id: model.id,
+              maxOutputTokens: model.maxOutputTokens,
               name: model.name,
             })),
             name: 'OpenAI environment',

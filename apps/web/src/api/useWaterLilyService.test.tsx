@@ -35,7 +35,9 @@ const providers: readonly ProviderDescriptor[] = [
           maxFileBytes: null,
           nativeFiles: false,
         },
+        contextWindowTokens: 10_000,
         id: 'deepseek-v4-flash',
+        maxOutputTokens: 1_000,
         name: 'DeepSeek V4 Flash',
       },
     ],
@@ -277,10 +279,11 @@ describe('useWaterLilyService', () => {
         context: {
           heads: [{ nodeId: 'node-synthesis', slot: 0 }],
           overrides: [{ nodeId: 'node-note', selection: { mode: 'excluded' } }],
+          tokenBudget: 9_000,
         },
         graphId: sampleGraph.id,
         providerId: 'deepseek',
-        request: { model: 'deepseek-v4-flash' },
+        request: { maxOutputTokens: 1_000, model: 'deepseek-v4-flash' },
       });
       return Promise.resolve(committed);
     });

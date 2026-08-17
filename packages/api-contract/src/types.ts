@@ -43,7 +43,9 @@ export interface ModelCapabilities {
 
 export interface ModelDescriptor {
   readonly capabilities: ModelCapabilities;
+  readonly contextWindowTokens?: number | null;
   readonly id: string;
+  readonly maxOutputTokens?: number | null;
   readonly name: string;
 }
 

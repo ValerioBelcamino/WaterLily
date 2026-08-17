@@ -31,6 +31,59 @@ describe('OperationDialog', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('creates a persistent editable checkpoint from the selected revisions', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <OperationDialog
+        kind="checkpoint"
+        onClose={() => undefined}
+        onSubmit={onSubmit}
+        selectedCount={2}
+        selectedTitle="Ignored"
+      />,
+    );
+    expect(screen.getByText('2 selected nodes')).toBeVisible();
+    expect(
+      screen.getByText(/future context starts from this editable summary/),
+    ).toBeVisible();
+    await user.type(screen.getByLabelText(/Node title/), ' Chapter one ');
+    await user.type(
+      screen.getByLabelText('Persistent summary'),
+      ' Stable understanding. ',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Create summary checkpoint' }),
+    );
+    expect(onSubmit).toHaveBeenCalledWith({
+      kind: 'checkpoint',
+      text: 'Stable understanding.',
+      title: 'Chapter one',
+    });
+  });
+
+  it.each([
+    ['branch', 'Message cannot be blank.'],
+    ['checkpoint', 'Checkpoint summary cannot be blank.'],
+    ['code', 'Python code cannot be blank.'],
+    ['group', 'Group name cannot be blank.'],
+    ['import', 'Paste or choose a graph document.'],
+  ] as const)('validates blank %s submissions', async (kind, message) => {
+    const view = render(
+      <OperationDialog
+        kind={kind}
+        onClose={() => undefined}
+        onSubmit={() => undefined}
+        selectedCount={1}
+        selectedTitle="Selection"
+      />,
+    );
+    const form = view.container.querySelector('form');
+    expect(form).not.toBeNull();
+    if (form !== null) fireEvent.submit(form);
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+  });
+
   it('validates splits and keeps the dialog open after a failed operation', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

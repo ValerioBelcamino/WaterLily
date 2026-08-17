@@ -3,6 +3,8 @@ import {
   connectReference,
   createGraph,
   createNode,
+  reviseTextBlock,
+  setTemplateBinding,
   type GraphNode,
   type GraphSnapshot,
 } from '@waterlily/domain';
@@ -14,7 +16,10 @@ import {
   deriveActiveContextFlow,
   deriveDefaultPositions,
   nodeTitle,
+  parseTemplateBindingHandleId,
   revisionText,
+  templateBindingEdgeId,
+  templateBindingHandleId,
   toFlowEdges,
   toFlowNodes,
 } from './graphViewModel';
@@ -209,6 +214,76 @@ describe('graph view model', () => {
       className: 'context-flow-edge context-flow-edge--inactive',
       data: { flowState: 'inactive' },
       style: { opacity: 0.16 },
+    });
+  });
+
+  it('projects template pins and glows their pinned data dependencies', async () => {
+    const templated = setTemplateBinding(
+      reviseTextBlock(sampleGraph, {
+        blockId: 'block-node-note',
+        createdAt: '2026-08-05T10:00:00.000Z',
+        nodeId: 'node-note',
+        revisionId: 'revision-note-template',
+        text: 'Review {{mechanism}}',
+      }),
+      {
+        createdAt: '2026-08-05T10:00:01.000Z',
+        name: 'mechanism',
+        nodeId: 'node-note',
+        revisionId: 'revision-note-bound',
+        sourceNodeId: 'node-answer',
+        targetBlockId: 'block-node-note',
+      },
+    );
+    const handleId = templateBindingHandleId('block-node-note', 'mechanism');
+    expect(parseTemplateBindingHandleId(handleId)).toEqual({
+      blockId: 'block-node-note',
+      name: 'mechanism',
+    });
+    expect(parseTemplateBindingHandleId('context-target')).toBeNull();
+    expect(
+      parseTemplateBindingHandleId('binding:missing-separator'),
+    ).toBeNull();
+    expect(parseTemplateBindingHandleId('binding:%:bad')).toBeNull();
+    const note = toFlowNodes(templated).find((node) => node.id === 'node-note');
+    expect(note?.data).toMatchObject({
+      templateVariables: [
+        {
+          blockId: 'block-node-note',
+          boundSourceNodeId: 'node-answer',
+          name: 'mechanism',
+        },
+      ],
+    });
+    expect(note?.data.preview).toContain('ATP synthase');
+    expect(note?.handles?.some((handle) => handle.id === handleId)).toBe(true);
+
+    const bindingEdgeId = templateBindingEdgeId(
+      'revision-note-bound',
+      'block-node-note',
+      'mechanism',
+    );
+    expect(
+      toFlowEdges(templated).find((edge) => edge.id === bindingEdgeId),
+    ).toMatchObject({
+      animated: false,
+      data: { flowState: 'idle' },
+    });
+    const activeFlow = await deriveActiveContextFlow(templated, [
+      { label: 'Template note', nodeId: 'node-note', slot: 0 },
+    ]);
+    expect(activeFlow.nodeIds).toEqual(['node-answer', 'node-note']);
+    expect(activeFlow.edgeIds).toEqual([bindingEdgeId]);
+    expect(
+      toFlowEdges(templated, activeFlow).find(
+        (edge) => edge.id === bindingEdgeId,
+      ),
+    ).toMatchObject({
+      animated: true,
+      data: { flowState: 'active', kind: 'binding' },
+      source: 'node-answer',
+      target: 'node-note',
+      targetHandle: handleId,
     });
   });
 

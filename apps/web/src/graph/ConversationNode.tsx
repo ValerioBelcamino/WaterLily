@@ -9,7 +9,12 @@ import {
   Wrench,
 } from 'lucide-react';
 
-import type { ConversationFlowNode } from './graphViewModel';
+import {
+  CONTEXT_TARGET_HANDLE,
+  templateBindingHandleId,
+  TEXT_OUTPUT_HANDLE,
+  type ConversationFlowNode,
+} from './graphViewModel';
 
 const roleIcons = {
   assistant: Bot,
@@ -42,6 +47,8 @@ export function ConversationNode({
     >
       <Handle
         className="conversation-node__handle"
+        id={CONTEXT_TARGET_HANDLE}
+        isConnectable={false}
         position={Position.Left}
         type="target"
       />
@@ -60,6 +67,33 @@ export function ConversationNode({
       </header>
       <h2>{data.title}</h2>
       <p>{data.preview}</p>
+      {data.templateVariables.length === 0 ? null : (
+        <div
+          className="conversation-node__variables"
+          aria-label="Template inputs"
+        >
+          {data.templateVariables.map((variable) => (
+            <div
+              className={
+                variable.boundSourceNodeId === null ? 'is-unbound' : 'is-bound'
+              }
+              key={`${variable.blockId}:${variable.name}`}
+            >
+              <Handle
+                aria-label={`Connect ${variable.name}`}
+                className="conversation-node__variable-handle"
+                id={templateBindingHandleId(variable.blockId, variable.name)}
+                position={Position.Left}
+                type="target"
+              />
+              <code>{`{{${variable.name}}}`}</code>
+              <span>
+                {variable.boundSourceNodeId === null ? 'unbound' : 'connected'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       <footer>
         <span>
           {data.attachmentCompatibility === 'unsupported'
@@ -75,7 +109,9 @@ export function ConversationNode({
         <span aria-hidden="true">↗</span>
       </footer>
       <Handle
-        className="conversation-node__handle"
+        aria-label="Text output"
+        className="conversation-node__handle conversation-node__handle--output"
+        id={TEXT_OUTPUT_HANDLE}
         position={Position.Right}
         type="source"
       />

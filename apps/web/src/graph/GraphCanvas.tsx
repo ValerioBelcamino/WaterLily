@@ -5,6 +5,7 @@ import {
   MiniMap,
   ReactFlow,
   type ReactFlowInstance,
+  type Connection,
   type NodeMouseHandler,
   type OnNodeDrag,
   type OnNodesChange,
@@ -33,6 +34,8 @@ import {
   toFlowEdges,
   toFlowNodes,
   deriveActiveContextFlow,
+  nodeTitle,
+  parseTemplateBindingHandleId,
   type ActiveContextFlow,
   type WaterLilyFlowNode,
 } from './graphViewModel';
@@ -79,6 +82,9 @@ export function GraphCanvas({
     >
   >({});
   const addFileContexts = useWaterLilyStore((state) => state.addFileContexts);
+  const bindTemplateVariable = useWaterLilyStore(
+    (state) => state.bindTemplateVariable,
+  );
   const positions = useWaterLilyStore((state) => state.positions);
   const contextSelections = useWaterLilyStore(
     (state) => state.contextSelections,
@@ -240,6 +246,30 @@ export function GraphCanvas({
     });
   };
 
+  const handleConnect = (connection: Connection): void => {
+    const target = parseTemplateBindingHandleId(connection.targetHandle);
+    if (target === null) return;
+    try {
+      bindTemplateVariable({
+        createdAt: new Date().toISOString(),
+        name: target.name,
+        revisionId: createPortableId('revision'),
+        sourceNodeId: connection.source,
+        targetBlockId: target.blockId,
+        targetNodeId: connection.target,
+      });
+      setDropStatus(
+        `Connected {{${target.name}}} to ${nodeTitle(graph, connection.source)}.`,
+      );
+    } catch (cause) {
+      setDropStatus(
+        cause instanceof Error
+          ? cause.message
+          : 'The template input could not be connected.',
+      );
+    }
+  };
+
   const hasFiles = (event: DragEvent<HTMLElement>): boolean =>
     Array.from(event.dataTransfer.types).includes('Files');
 
@@ -325,12 +355,13 @@ export function GraphCanvas({
         maxZoom={1.5}
         minZoom={0.2}
         nodes={nodes}
-        nodesConnectable={false}
+        nodesConnectable
         nodeTypes={nodeTypes}
         onNodesChange={handleNodesChange}
         onInit={(instance) => {
           flowInstance.current = instance;
         }}
+        onConnect={handleConnect}
         onNodeClick={handleNodeClick}
         onNodeDragStop={handleNodeDragStop}
         onPaneClick={() => {

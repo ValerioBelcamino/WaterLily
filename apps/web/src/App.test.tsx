@@ -205,6 +205,54 @@ describe('App', () => {
     ).toEqual([0, 1]);
   });
 
+  it('creates and edits a persistent summary checkpoint', async () => {
+    const user = userEvent.setup();
+    useWaterLilyStore.getState().selectNode('node-answer');
+    useWaterLilyStore.getState().selectNode('node-side-answer', true);
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /Checkpoint/ }));
+    await user.type(screen.getByLabelText(/Node title/), 'Exam checkpoint');
+    await user.type(
+      screen.getByLabelText('Persistent summary'),
+      'Remember the shared mechanism.',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Create summary checkpoint' }),
+    );
+
+    let state = useWaterLilyStore.getState();
+    const checkpointId = state.selectedNodeId;
+    expect(state.graph.nodes[checkpointId ?? '']).toMatchObject({
+      kind: 'summary',
+      title: 'Exam checkpoint',
+    });
+    expect(
+      Object.values(state.graph.edges).filter(
+        (edge) => edge.targetNodeId === checkpointId,
+      ),
+    ).toHaveLength(2);
+    expect(screen.getByText('context root')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Edit node content' }));
+    fireEvent.change(screen.getByLabelText('Editable content'), {
+      target: { value: 'Edited durable summary.' },
+    });
+    await user.click(screen.getByRole('button', { name: /Save revision/ }));
+    state = useWaterLilyStore.getState();
+    const checkpoint = state.graph.nodes[checkpointId ?? ''];
+    const revision =
+      checkpoint === undefined
+        ? undefined
+        : state.graph.revisions[checkpoint.currentRevisionId];
+    expect(revision?.blocks[0]).toMatchObject({
+      text: 'Edited durable summary.',
+    });
+    expect(revision?.metadata).toEqual({
+      checkpoint: { sourceCount: 2, version: 1 },
+    });
+  });
+
   it('groups a multi-selection and imports a remapped graph document', async () => {
     const user = userEvent.setup();
     useWaterLilyStore.getState().selectNode('node-answer');

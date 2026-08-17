@@ -151,7 +151,9 @@ describe('credential provider registry', () => {
     });
     expect(openai.models[0]).toMatchObject({
       capabilities: { nativeFiles: true },
+      contextWindowTokens: 1_050_000,
       id: 'gpt-5.6-sol',
+      maxOutputTokens: 128_000,
     });
     expect(deepseek.models.map((model) => model.id)).toEqual([
       'deepseek-chat',

@@ -5,6 +5,10 @@ import type {
   GraphSnapshot,
   MessageRole,
 } from '@waterlily/domain';
+import {
+  extractTemplateVariables,
+  resolveRevisionBlocks,
+} from '@waterlily/domain';
 import type { GraphViewGroup, GraphViewState } from '@waterlily/interchange';
 import {
   compileContext,
@@ -39,6 +43,13 @@ export interface ConversationNodeData extends Record<string, unknown> {
   readonly preview: string;
   readonly role: MessageRole | null;
   readonly title: string;
+  readonly templateVariables: readonly TemplateVariableView[];
+}
+
+export interface TemplateVariableView {
+  readonly blockId: string;
+  readonly boundSourceNodeId: string | null;
+  readonly name: string;
 }
 
 export type ConversationFlowNode = Node<ConversationNodeData, 'conversation'>;
@@ -67,9 +78,39 @@ export interface FlowProjectionOptions {
 const NODE_WIDTH = 246;
 const NODE_HEIGHT_ESTIMATE = 150;
 const HANDLE_SIZE = 9;
+export const CONTEXT_TARGET_HANDLE = 'context-target';
+export const TEXT_OUTPUT_HANDLE = 'text-output';
 const GROUP_PADDING_X = 30;
 const GROUP_PADDING_TOP = 48;
 const GROUP_PADDING_BOTTOM = 28;
+
+export function templateBindingHandleId(blockId: string, name: string): string {
+  return `binding:${encodeURIComponent(blockId)}:${encodeURIComponent(name)}`;
+}
+
+export function parseTemplateBindingHandleId(
+  handleId: string | null,
+): { readonly blockId: string; readonly name: string } | null {
+  if (!handleId?.startsWith('binding:')) return null;
+  const separator = handleId.indexOf(':', 'binding:'.length);
+  if (separator === -1) return null;
+  try {
+    return {
+      blockId: decodeURIComponent(handleId.slice('binding:'.length, separator)),
+      name: decodeURIComponent(handleId.slice(separator + 1)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function templateBindingEdgeId(
+  revisionId: string,
+  blockId: string,
+  name: string,
+): string {
+  return `template-binding:${revisionId}:${encodeURIComponent(blockId)}:${encodeURIComponent(name)}`;
+}
 
 const ROLE_LABELS: Readonly<Record<MessageRole, string>> = {
   assistant: 'Assistant',
@@ -179,6 +220,78 @@ export function revisionText(graph: GraphSnapshot, nodeId: string): string {
     .join('\n\n');
 }
 
+function resolvedRevisionText(graph: GraphSnapshot, nodeId: string): string {
+  const node = graph.nodes[nodeId];
+  if (node === undefined) return '';
+  try {
+    return resolveRevisionBlocks(graph, node.currentRevisionId)
+      .map((block) =>
+        block.type === 'text'
+          ? block.text
+          : block.name === null
+            ? `[Attachment: ${block.mediaType}]`
+            : `[Attachment: ${block.name}]`,
+      )
+      .join('\n\n');
+  } catch {
+    return revisionText(graph, nodeId);
+  }
+}
+
+export function templateVariablesForNode(
+  graph: GraphSnapshot,
+  nodeId: string,
+): readonly TemplateVariableView[] {
+  const node = graph.nodes[nodeId];
+  const revision =
+    node === undefined ? undefined : graph.revisions[node.currentRevisionId];
+  if (revision === undefined) return [];
+  return revision.blocks.flatMap((block) => {
+    if (block.type !== 'text' || block.template === undefined) return [];
+    return extractTemplateVariables(block.text).map((name) => ({
+      blockId: block.id,
+      boundSourceNodeId:
+        block.template?.bindings.find((binding) => binding.name === name)
+          ?.sourceNodeId ?? null,
+      name,
+    }));
+  });
+}
+
+function addTemplateDependencies(
+  graph: GraphSnapshot,
+  revisionId: string,
+  includedBlockIds: ReadonlySet<string> | null,
+  nodeIds: Set<string>,
+  edgeIds: Set<string>,
+  visited: Set<string>,
+): void {
+  if (visited.has(revisionId)) return;
+  visited.add(revisionId);
+  const revision = graph.revisions[revisionId];
+  if (revision === undefined) return;
+  for (const block of revision.blocks) {
+    if (
+      block.type !== 'text' ||
+      block.template === undefined ||
+      (includedBlockIds !== null && !includedBlockIds.has(block.id))
+    )
+      continue;
+    for (const binding of block.template.bindings) {
+      nodeIds.add(binding.sourceNodeId);
+      edgeIds.add(templateBindingEdgeId(revision.id, block.id, binding.name));
+      addTemplateDependencies(
+        graph,
+        binding.sourceRevisionId,
+        null,
+        nodeIds,
+        edgeIds,
+        visited,
+      );
+    }
+  }
+}
+
 export function nodeTitle(graph: GraphSnapshot, nodeId: string): string {
   const node = graph.nodes[nodeId];
   if (node === undefined) return 'Unknown node';
@@ -206,6 +319,19 @@ export async function deriveActiveContextFlow(
       .filter((decision) => decision.mode !== 'excluded')
       .map((decision) => decision.nodeId),
   );
+  const activeTemplateEdgeIds = new Set<string>();
+  const visitedTemplateRevisions = new Set<string>();
+  for (const decision of compiled.decisions) {
+    if (decision.mode === 'excluded') continue;
+    addTemplateDependencies(
+      graph,
+      decision.revisionId,
+      new Set(decision.includedBlockIds),
+      activeNodeIds,
+      activeTemplateEdgeIds,
+      visitedTemplateRevisions,
+    );
+  }
   const nodeIds = [...activeNodeIds].sort((left, right) =>
     left.localeCompare(right),
   );
@@ -218,6 +344,8 @@ export async function deriveActiveContextFlow(
     )
     .map((edge) => edge.id)
     .sort((left, right) => left.localeCompare(right));
+  edgeIds.push(...activeTemplateEdgeIds);
+  edgeIds.sort((left, right) => left.localeCompare(right));
   return { edgeIds, mode, nodeIds };
 }
 
@@ -288,7 +416,10 @@ export function toFlowNodes(
   });
   const conversationNodes = orderedNodeIds(graph).map((id) => {
     const node = graph.nodes[id] as GraphNode;
-    const text = revisionText(graph, id);
+    const text = resolvedRevisionText(graph, id);
+    const templateVariables = templateVariablesForNode(graph, id);
+    const estimatedHeight =
+      NODE_HEIGHT_ESTIMATE + Math.max(0, templateVariables.length * 24);
     const group = groupByNode.get(id);
     const absolutePosition = absolutePositions[id] as CanvasPosition;
     const parentId = group === undefined ? undefined : `view-group:${group.id}`;
@@ -317,32 +448,42 @@ export function toFlowNodes(
         preview: text.length > 180 ? `${text.slice(0, 177)}…` : text,
         role: node.role,
         title: nodeTitle(graph, id),
+        templateVariables,
       },
       handles: [
         {
           height: HANDLE_SIZE,
-          id: null,
+          id: CONTEXT_TARGET_HANDLE,
           position: Position.Left,
           type: 'target',
           width: HANDLE_SIZE,
           x: -HANDLE_SIZE / 2,
-          y: (NODE_HEIGHT_ESTIMATE - HANDLE_SIZE) / 2,
+          y: (estimatedHeight - HANDLE_SIZE) / 2,
         },
         {
           height: HANDLE_SIZE,
-          id: null,
+          id: TEXT_OUTPUT_HANDLE,
           position: Position.Right,
           type: 'source',
           width: HANDLE_SIZE,
           x: NODE_WIDTH - HANDLE_SIZE / 2,
-          y: (NODE_HEIGHT_ESTIMATE - HANDLE_SIZE) / 2,
+          y: (estimatedHeight - HANDLE_SIZE) / 2,
         },
+        ...templateVariables.map((variable, index) => ({
+          height: HANDLE_SIZE,
+          id: templateBindingHandleId(variable.blockId, variable.name),
+          position: Position.Left,
+          type: 'target' as const,
+          width: HANDLE_SIZE,
+          x: -HANDLE_SIZE / 2,
+          y: 102 + index * 24,
+        })),
       ],
       id,
       // React Flow otherwise hides a freshly projected node until its
       // ResizeObserver reports dimensions. Supplying the layout estimate keeps
       // controlled graph updates visible while the exact height is measured.
-      initialHeight: NODE_HEIGHT_ESTIMATE,
+      initialHeight: estimatedHeight,
       initialWidth: NODE_WIDTH,
       ...(parentId === undefined
         ? {}
@@ -362,7 +503,7 @@ export function toFlowEdges(
 ): Edge[] {
   const activeEdgeIds = new Set(activeFlow?.edgeIds ?? []);
   const incompatibleNodes = new Set(incompatibleAttachmentNodeIds);
-  return Object.values(graph.edges)
+  const graphEdges = Object.values(graph.edges)
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((edge) => {
       const presentation = edgePresentation[edge.kind];
@@ -394,6 +535,7 @@ export function toFlowEdges(
           width: 16,
         },
         source: edge.sourceNodeId,
+        sourceHandle: TEXT_OUTPUT_HANDLE,
         style: {
           stroke: presentation.color,
           strokeDasharray: presentation.dash,
@@ -401,9 +543,52 @@ export function toFlowEdges(
           opacity: flowState === 'inactive' ? 0.16 : 1,
         },
         target: edge.targetNodeId,
+        targetHandle: CONTEXT_TARGET_HANDLE,
         type: 'smoothstep',
       } satisfies Edge;
     });
+  const templateEdges = Object.values(graph.nodes).flatMap((node): Edge[] => {
+    if (node.deletedAt !== null) return [];
+    const revision = graph.revisions[node.currentRevisionId];
+    if (revision === undefined) return [];
+    return revision.blocks.flatMap((block): Edge[] => {
+      if (block.type !== 'text' || block.template === undefined) return [];
+      return block.template.bindings.map((binding) => {
+        const id = templateBindingEdgeId(revision.id, block.id, binding.name);
+        const flowState: ContextFlowState =
+          activeFlow === null
+            ? 'idle'
+            : activeEdgeIds.has(id)
+              ? 'active'
+              : 'inactive';
+        return {
+          animated: flowState === 'active',
+          className: `template-binding-edge context-flow-edge--${flowState}${flowState === 'active' && activeFlow !== null ? ` context-flow-edge--${activeFlow.mode}` : ''}`,
+          data: { flowState, kind: 'binding' },
+          id,
+          label: `{{${binding.name}}}`,
+          markerEnd: {
+            color: '#9e86d8',
+            height: 15,
+            type: MarkerType.ArrowClosed,
+            width: 15,
+          },
+          source: binding.sourceNodeId,
+          sourceHandle: TEXT_OUTPUT_HANDLE,
+          style: {
+            opacity: flowState === 'inactive' ? 0.16 : 1,
+            stroke: '#9e86d8',
+            strokeDasharray: '5 4',
+            strokeWidth: 2,
+          },
+          target: node.id,
+          targetHandle: templateBindingHandleId(block.id, binding.name),
+          type: 'smoothstep',
+        } satisfies Edge;
+      });
+    });
+  });
+  return [...graphEdges, ...templateEdges];
 }
 
 export function contextThread(

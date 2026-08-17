@@ -6,6 +6,9 @@ import type { ContextSelection } from '@waterlily/context-engine';
 import {
   connectContext,
   createNode,
+  removeTemplateBinding,
+  reviseTextBlock,
+  setTemplateBinding,
   type GraphSnapshot,
 } from '@waterlily/domain';
 import {
@@ -16,6 +19,7 @@ import {
 } from '@waterlily/interchange';
 import {
   branchFromNode,
+  createCheckpoint as createSummaryCheckpoint,
   mergeBranches,
   splitNode,
   type BranchInput,
@@ -71,6 +75,43 @@ export interface AddExecutionResultInput {
   readonly truncated: boolean;
 }
 
+export interface CreateCheckpointInput {
+  readonly blockId: string;
+  readonly createdAt: string;
+  readonly nodeId: string;
+  readonly provenanceEdgeIds: readonly string[];
+  readonly revisionId: string;
+  readonly sourceNodeIds: readonly string[];
+  readonly text: string;
+  readonly title: string | null;
+}
+
+export interface ReviseTextInput {
+  readonly blockId: string;
+  readonly createdAt: string;
+  readonly nodeId: string;
+  readonly revisionId: string;
+  readonly text: string;
+}
+
+export interface BindTemplateVariableInput {
+  readonly createdAt: string;
+  readonly name: string;
+  readonly revisionId: string;
+  readonly sourceBlockId?: string | null;
+  readonly sourceNodeId: string;
+  readonly targetBlockId: string;
+  readonly targetNodeId: string;
+}
+
+export interface UnbindTemplateVariableInput {
+  readonly createdAt: string;
+  readonly name: string;
+  readonly revisionId: string;
+  readonly targetBlockId: string;
+  readonly targetNodeId: string;
+}
+
 interface WaterLilyState {
   readonly contextSelections: Readonly<Record<string, ContextSelection>>;
   readonly graph: GraphSnapshot;
@@ -84,12 +125,15 @@ interface WaterLilyState {
   readonly addFileContexts: (input: AddFileContextsInput) => void;
   readonly addGroup: (group: GraphViewGroup) => void;
   readonly branch: (input: Omit<BranchInput, 'graph'>) => void;
+  readonly bindTemplateVariable: (input: BindTemplateVariableInput) => void;
+  readonly createCheckpoint: (input: CreateCheckpointInput) => void;
   readonly merge: (input: Omit<MergeInput, 'graph'>) => void;
   readonly mergeDocument: (
     document: GraphDocumentV1,
     remapId: IdRemapper,
   ) => void;
   readonly replaceWorkspace: (workspace: WorkspaceSnapshot) => void;
+  readonly reviseText: (input: ReviseTextInput) => void;
   readonly reset: () => void;
   readonly selectNode: (nodeId: string | null, additive?: boolean) => void;
   readonly setPosition: (nodeId: string, position: CanvasPosition) => void;
@@ -101,6 +145,7 @@ interface WaterLilyState {
   readonly setViewMode: (mode: ViewMode) => void;
   readonly split: (input: Omit<SplitInput, 'graph'>) => void;
   readonly toggleContext: (nodeId: string) => void;
+  readonly unbindTemplateVariable: (input: UnbindTemplateVariableInput) => void;
 }
 
 function initialState() {
@@ -308,6 +353,40 @@ export const useWaterLilyStore = create<WaterLilyState>()((set) => ({
       selectedNodeIds: [input.message.nodeId],
     }));
   },
+  bindTemplateVariable: (input) => {
+    set((state) => ({
+      graph: setTemplateBinding(state.graph, {
+        createdAt: input.createdAt,
+        name: input.name,
+        nodeId: input.targetNodeId,
+        revisionId: input.revisionId,
+        sourceNodeId: input.sourceNodeId,
+        targetBlockId: input.targetBlockId,
+        ...(input.sourceBlockId === undefined
+          ? {}
+          : { sourceBlockId: input.sourceBlockId }),
+      }),
+    }));
+  },
+  createCheckpoint: (input) => {
+    set((state) => ({
+      graph: createSummaryCheckpoint({
+        graph: state.graph,
+        provenanceEdgeIds: input.provenanceEdgeIds,
+        sources: input.sourceNodeIds.map((nodeId) => ({ nodeId })),
+        summary: {
+          blockId: input.blockId,
+          createdAt: input.createdAt,
+          nodeId: input.nodeId,
+          revisionId: input.revisionId,
+          text: input.text,
+          title: input.title,
+        },
+      }),
+      selectedNodeId: input.nodeId,
+      selectedNodeIds: [input.nodeId],
+    }));
+  },
   merge: (input) => {
     set((state) => ({
       graph: mergeBranches({ ...input, graph: state.graph }),
@@ -353,6 +432,11 @@ export const useWaterLilyStore = create<WaterLilyState>()((set) => ({
         selectedNodeIds: selectedNodeId === null ? [] : [selectedNodeId],
       };
     });
+  },
+  reviseText: (input) => {
+    set((state) => ({
+      graph: reviseTextBlock(state.graph, input),
+    }));
   },
   selectNode: (nodeId, additive = false) => {
     set((state) => {
@@ -410,5 +494,16 @@ export const useWaterLilyStore = create<WaterLilyState>()((set) => ({
         },
       };
     });
+  },
+  unbindTemplateVariable: (input) => {
+    set((state) => ({
+      graph: removeTemplateBinding(state.graph, {
+        createdAt: input.createdAt,
+        name: input.name,
+        nodeId: input.targetNodeId,
+        revisionId: input.revisionId,
+        targetBlockId: input.targetBlockId,
+      }),
+    }));
   },
 }));

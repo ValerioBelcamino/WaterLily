@@ -10,11 +10,15 @@ import type * as ReactFlowModule from '@xyflow/react';
 import type { ComponentProps, ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { WaterLilyFlowNode } from './graphViewModel';
+import {
+  templateBindingHandleId,
+  type WaterLilyFlowNode,
+} from './graphViewModel';
 
 interface FlowPropsCapture {
   readonly edges: ReactFlowModule.Edge[];
   readonly nodes: WaterLilyFlowNode[];
+  readonly onConnect: (connection: ReactFlowModule.Connection) => void;
   readonly onInit: (
     instance: ReactFlowModule.ReactFlowInstance<WaterLilyFlowNode>,
   ) => void;
@@ -202,6 +206,60 @@ describe('GraphCanvas', () => {
       y: 15,
     });
     expect(miniMap.nodeColor(group)).toBe('#7669a844');
+  });
+
+  it('connects a node output to a template input pin', () => {
+    useWaterLilyStore.getState().reviseText({
+      blockId: 'block-node-note',
+      createdAt: '2026-08-17T10:00:00.000Z',
+      nodeId: 'node-note',
+      revisionId: 'revision-note-template',
+      text: 'Apply {{mechanism}}',
+    });
+    renderCanvas({ graph: useWaterLilyStore.getState().graph });
+    const flow = capture.flow;
+    expect(flow).toBeDefined();
+    if (flow === undefined) return;
+    const revisionBefore =
+      useWaterLilyStore.getState().graph.nodes['node-note']?.currentRevisionId;
+    act(() => {
+      flow.onConnect({
+        source: 'node-answer',
+        sourceHandle: 'text-output',
+        target: 'node-note',
+        targetHandle: 'context-target',
+      });
+    });
+    expect(
+      useWaterLilyStore.getState().graph.nodes['node-note']?.currentRevisionId,
+    ).toBe(revisionBefore);
+    act(() => {
+      flow.onConnect({
+        source: 'node-answer',
+        sourceHandle: 'text-output',
+        target: 'node-note',
+        targetHandle: templateBindingHandleId('block-node-note', 'mechanism'),
+      });
+    });
+    const note = useWaterLilyStore.getState().graph.nodes['node-note'];
+    const revision =
+      note === undefined
+        ? undefined
+        : useWaterLilyStore.getState().graph.revisions[note.currentRevisionId];
+    expect(revision?.blocks[0]).toMatchObject({
+      template: {
+        bindings: [
+          {
+            name: 'mechanism',
+            sourceNodeId: 'node-answer',
+            sourceRevisionId: 'revision-node-answer',
+          },
+        ],
+      },
+    });
+    expect(
+      screen.getByText('Connected {{mechanism}} to Mechanism overview.'),
+    ).toBeVisible();
   });
 
   it('projects active generation nodes and edges into React Flow', () => {

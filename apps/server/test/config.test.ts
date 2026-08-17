@@ -106,6 +106,8 @@ describe('provider configuration', () => {
     });
     expect(providers[0]?.descriptor.models[0]).toMatchObject({
       capabilities: { nativeFiles: true },
+      contextWindowTokens: 1_050_000,
+      maxOutputTokens: 128_000,
     });
   });
 

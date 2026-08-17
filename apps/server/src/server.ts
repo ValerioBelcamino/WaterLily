@@ -11,6 +11,7 @@ import {
   type WorkspaceSnapshot,
 } from '@waterlily/api-contract';
 import { DatabaseError } from '@waterlily/database';
+import { approximateTextTokenEstimator } from '@waterlily/context-engine';
 import { ProviderError } from '@waterlily/providers';
 import {
   applyGenerationCommit,
@@ -302,7 +303,10 @@ function generationResponse(
             input.providerId,
           );
           const result = await runGeneration({
-            context: input.context,
+            context: {
+              ...input.context,
+              tokenEstimator: approximateTextTokenEstimator,
+            },
             graph: workspace.graph,
             onEvent: (event) => emit({ event, type: 'provider-event' }),
             output: {

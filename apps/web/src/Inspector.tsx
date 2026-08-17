@@ -1,20 +1,29 @@
-import type { GraphSnapshot } from '@waterlily/domain';
+import {
+  extractTemplateVariables,
+  type GraphSnapshot,
+  type TextContentBlock,
+} from '@waterlily/domain';
 import type { ContextSelection } from '@waterlily/context-engine';
 import {
   GitBranch,
   GitMerge,
   Code2,
+  Pencil,
   Play,
+  Save,
   Sparkles,
   Split,
   Square,
   Tag,
 } from 'lucide-react';
+import { useState } from 'react';
 
 import type {
   GenerationViewState,
   PythonExecutionViewState,
 } from './api/useWaterLilyService';
+import { ContextMeter } from './ContextMeter';
+import type { ContextMeterState } from './useContextMeter';
 import { nodeTitle, revisionText } from './graph/graphViewModel';
 
 export interface InspectorProps {
@@ -24,37 +33,64 @@ export interface InspectorProps {
   readonly generation: GenerationViewState;
   readonly graph: GraphSnapshot;
   readonly contextSelection: ContextSelection;
+  readonly contextMeter: ContextMeterState;
   readonly nodeId: string | null;
   readonly onBranch: () => void;
+  readonly onBindVariable: (
+    blockId: string,
+    name: string,
+    sourceNodeId: string,
+  ) => void;
   readonly onCancel: () => void;
   readonly onCreateCode: () => void;
   readonly onContextSelectionChange: (selection: ContextSelection) => void;
   readonly onGenerate: () => void;
   readonly onRunCode: () => void;
   readonly onMerge: () => void;
+  readonly onReviseText: (blockId: string, text: string) => void;
   readonly onSplit: () => void;
+  readonly onUnbindVariable: (blockId: string, name: string) => void;
   readonly selectedCount: number;
 }
 
 export function Inspector({
   canExecute,
   canGenerate,
+  contextMeter,
   contextSelection,
   generation,
   execution,
   graph,
   nodeId,
   onBranch,
+  onBindVariable,
   onCancel,
   onCreateCode,
   onContextSelectionChange,
   onGenerate,
   onRunCode,
   onMerge,
+  onReviseText,
   onSplit,
+  onUnbindVariable,
   selectedCount,
 }: InspectorProps) {
   const node = nodeId === null ? undefined : graph.nodes[nodeId];
+  const revision =
+    node === undefined ? undefined : graph.revisions[node.currentRevisionId];
+  const firstTextBlock = revision?.blocks.find(
+    (block): block is TextContentBlock => block.type === 'text',
+  );
+  const [editingRevisionId, setEditingRevisionId] = useState<string | null>(
+    null,
+  );
+  const [draft, setDraft] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [templateFailure, setTemplateFailure] = useState<{
+    readonly message: string;
+    readonly revisionId: string;
+  } | null>(null);
+  const editing = editingRevisionId === revision?.id;
   if (node === undefined) {
     return (
       <aside className="inspector inspector--empty" aria-label="Node inspector">
@@ -74,7 +110,16 @@ export function Inspector({
   const outbound = Object.values(graph.edges).filter(
     (edge) => edge.sourceNodeId === node.id,
   ).length;
-  const revision = graph.revisions[node.currentRevisionId];
+  const editable =
+    firstTextBlock !== undefined &&
+    (node.kind === 'summary' ||
+      node.kind === 'note' ||
+      node.role === 'user' ||
+      node.role === 'system');
+  const templateVariables =
+    firstTextBlock?.template === undefined
+      ? []
+      : extractTemplateVariables(firstTextBlock.text);
 
   return (
     <aside className="inspector" aria-label="Node inspector">
@@ -89,12 +134,142 @@ export function Inspector({
       <div className="inspector__chips" aria-label="Node attributes">
         <span>{node.role ?? 'document'}</span>
         <span>{node.kind}</span>
+        {revision?.metadata.checkpoint === undefined ? null : (
+          <span>context root</span>
+        )}
       </div>
-      <p
-        className={`inspector__content${node.kind === 'code' || node.kind === 'execution' ? ' inspector__content--code' : ''}`}
-      >
-        {revisionText(graph, node.id)}
-      </p>
+      {editing && firstTextBlock !== undefined ? (
+        <div className="inspector__editor">
+          <label htmlFor="inspector-text-editor">Editable content</label>
+          <textarea
+            autoFocus
+            id="inspector-text-editor"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+          />
+          <small>
+            Variables use {'{{name}}'}. Write {'\\{{name}}'} for literal braces.
+          </small>
+          {editError === null ? null : <p role="alert">{editError}</p>}
+          <div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingRevisionId(null);
+                setDraft(firstTextBlock.text);
+                setEditError(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className="button--primary"
+              type="button"
+              onClick={() => {
+                try {
+                  onReviseText(firstTextBlock.id, draft);
+                  setEditingRevisionId(null);
+                  setEditError(null);
+                } catch (cause) {
+                  setEditError(
+                    cause instanceof Error ? cause.message : 'Edit failed.',
+                  );
+                }
+              }}
+            >
+              <Save aria-hidden="true" size={14} /> Save revision
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="inspector__content-wrap">
+          <p
+            className={`inspector__content${node.kind === 'code' || node.kind === 'execution' ? ' inspector__content--code' : ''}`}
+          >
+            {revisionText(graph, node.id)}
+          </p>
+          {editable ? (
+            <button
+              aria-label="Edit node content"
+              type="button"
+              onClick={() => {
+                setDraft(firstTextBlock.text);
+                setEditError(null);
+                setEditingRevisionId(revision?.id ?? null);
+              }}
+            >
+              <Pencil aria-hidden="true" size={14} /> Edit
+            </button>
+          ) : null}
+        </div>
+      )}
+      {firstTextBlock === undefined || templateVariables.length === 0 ? null : (
+        <section className="template-inputs">
+          <header>
+            <strong>Template inputs</strong>
+            <span>{String(templateVariables.length)} pins</span>
+          </header>
+          {templateVariables.map((name) => {
+            const binding = firstTextBlock.template?.bindings.find(
+              (candidate) => candidate.name === name,
+            );
+            return (
+              <label key={name}>
+                <code>{`{{${name}}}`}</code>
+                <select
+                  aria-label={`Source for ${name}`}
+                  value={binding?.sourceNodeId ?? ''}
+                  onChange={(event) => {
+                    try {
+                      if (event.target.value.length === 0) {
+                        if (binding !== undefined)
+                          onUnbindVariable(firstTextBlock.id, name);
+                      } else {
+                        onBindVariable(
+                          firstTextBlock.id,
+                          name,
+                          event.target.value,
+                        );
+                      }
+                      setTemplateFailure(null);
+                    } catch (cause) {
+                      setTemplateFailure({
+                        message:
+                          cause instanceof Error
+                            ? cause.message
+                            : 'Template connection failed.',
+                        revisionId: revision?.id ?? '',
+                      });
+                    }
+                  }}
+                >
+                  <option value="">Unbound</option>
+                  {Object.values(graph.nodes)
+                    .filter((candidate) => {
+                      const candidateRevision =
+                        graph.revisions[candidate.currentRevisionId];
+                      return (
+                        candidate.deletedAt === null &&
+                        candidateRevision?.blocks.some(
+                          (block) => block.type === 'text',
+                        ) === true
+                      );
+                    })
+                    .map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {nodeTitle(graph, candidate.id)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            );
+          })}
+          {templateFailure !== null &&
+          templateFailure.revisionId === revision?.id ? (
+            <p role="alert">{templateFailure.message}</p>
+          ) : null}
+        </section>
+      )}
       <dl className="inspector__facts">
         <div>
           <dt>Incoming</dt>
@@ -111,6 +286,7 @@ export function Inspector({
           </dd>
         </div>
       </dl>
+      <ContextMeter state={contextMeter} />
       <div className="context-control">
         <div>
           <strong>Model context</strong>

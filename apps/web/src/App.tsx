@@ -7,6 +7,7 @@ import {
 } from '@waterlily/interchange';
 import {
   Download,
+  BookmarkPlus,
   Focus,
   FolderPlus,
   GitMerge,
@@ -18,6 +19,7 @@ import {
 import { useState } from 'react';
 
 import { useWaterLilyService } from './api/useWaterLilyService';
+import { useContextMeter } from './useContextMeter';
 import { FocusView } from './graph/FocusView';
 import { GraphCanvas } from './graph/GraphCanvas';
 import { nodeTitle, revisionText } from './graph/graphViewModel';
@@ -70,12 +72,17 @@ export function App() {
   const addGroup = useWaterLilyStore((state) => state.addGroup);
   const addCodeCell = useWaterLilyStore((state) => state.addCodeCell);
   const branch = useWaterLilyStore((state) => state.branch);
+  const bindTemplateVariable = useWaterLilyStore(
+    (state) => state.bindTemplateVariable,
+  );
+  const createCheckpoint = useWaterLilyStore((state) => state.createCheckpoint);
   const contextSelections = useWaterLilyStore(
     (state) => state.contextSelections,
   );
   const graph = useWaterLilyStore((state) => state.graph);
   const merge = useWaterLilyStore((state) => state.merge);
   const mergeDocument = useWaterLilyStore((state) => state.mergeDocument);
+  const reviseText = useWaterLilyStore((state) => state.reviseText);
   const selectedNodeId = useWaterLilyStore((state) => state.selectedNodeId);
   const selectedNodeIds = useWaterLilyStore((state) => state.selectedNodeIds);
   const selectNode = useWaterLilyStore((state) => state.selectNode);
@@ -84,6 +91,9 @@ export function App() {
   );
   const setViewMode = useWaterLilyStore((state) => state.setViewMode);
   const split = useWaterLilyStore((state) => state.split);
+  const unbindTemplateVariable = useWaterLilyStore(
+    (state) => state.unbindTemplateVariable,
+  );
   const viewMode = useWaterLilyStore((state) => state.viewMode);
   const nodeCount = Object.keys(graph.nodes).length;
   const edgeCount = Object.keys(graph.edges).length;
@@ -98,6 +108,12 @@ export function App() {
     (model) => model.id === service.selectedModelId,
   );
   const generationActive = service.generation.status !== 'idle';
+  const contextMeter = useContextMeter(
+    graph,
+    selectedNodeIds,
+    contextSelections,
+    activeModel ?? null,
+  );
   const archiveActive = service.archiveStatus !== 'idle';
   const statusMessage =
     service.archiveStatus === 'exporting'
@@ -140,6 +156,24 @@ export function App() {
         title: submission.title,
       });
       setNotice(`Grouped ${String(selectedNodeIds.length)} nodes.`);
+      return;
+    }
+    if (submission.kind === 'checkpoint') {
+      if (selectedNodeIds.length === 0)
+        throw new Error('Select at least one source node.');
+      createCheckpoint({
+        blockId: createPortableId('block'),
+        createdAt,
+        nodeId: createPortableId('node'),
+        provenanceEdgeIds: selectedNodeIds.map(() => createPortableId('edge')),
+        revisionId: createPortableId('revision'),
+        sourceNodeIds: selectedNodeIds,
+        text: submission.text,
+        title: submission.title,
+      });
+      setNotice(
+        `Created an editable checkpoint from ${String(selectedNodeIds.length)} source ${selectedNodeIds.length === 1 ? 'revision' : 'revisions'}.`,
+      );
       return;
     }
     if (selectedNodeId === null) throw new Error('Select a node first.');
@@ -337,6 +371,13 @@ export function App() {
             <button
               type="button"
               disabled={selectedNodeIds.length === 0}
+              onClick={() => setDialog('checkpoint')}
+            >
+              <BookmarkPlus aria-hidden="true" size={17} /> Checkpoint
+            </button>
+            <button
+              type="button"
+              disabled={selectedNodeIds.length === 0}
               onClick={() => setDialog('group')}
             >
               <FolderPlus aria-hidden="true" size={17} /> Group
@@ -385,8 +426,11 @@ export function App() {
               service.status === 'online' &&
               activeProvider?.available === true &&
               activeModel !== undefined &&
-              selectedNodeId !== null
+              selectedNodeId !== null &&
+              contextMeter.error === null &&
+              !contextMeter.overflow
             }
+            contextMeter={contextMeter}
             contextSelection={
               selectedNodeId === null
                 ? { mode: 'full' }
@@ -403,6 +447,17 @@ export function App() {
               if (selectedNodeId !== null)
                 setContextSelection(selectedNodeId, selection);
             }}
+            onBindVariable={(blockId, name, sourceNodeId) => {
+              if (selectedNodeId === null) return;
+              bindTemplateVariable({
+                createdAt: new Date().toISOString(),
+                name,
+                revisionId: createPortableId('revision'),
+                sourceNodeId,
+                targetBlockId: blockId,
+                targetNodeId: selectedNodeId,
+              });
+            }}
             onGenerate={() => {
               if (selectedNodeIds.length > 0)
                 void service.generate(selectedNodeIds);
@@ -411,9 +466,29 @@ export function App() {
               if (selectedNodeId !== null)
                 void service.executePython(selectedNodeId);
             }}
+            onReviseText={(blockId, text) => {
+              if (selectedNodeId === null) return;
+              reviseText({
+                blockId,
+                createdAt: new Date().toISOString(),
+                nodeId: selectedNodeId,
+                revisionId: createPortableId('revision'),
+                text,
+              });
+            }}
             onMerge={() => setDialog('merge')}
             onSplit={() => setDialog('split')}
             selectedCount={selectedNodeIds.length}
+            onUnbindVariable={(blockId, name) => {
+              if (selectedNodeId === null) return;
+              unbindTemplateVariable({
+                createdAt: new Date().toISOString(),
+                name,
+                revisionId: createPortableId('revision'),
+                targetBlockId: blockId,
+                targetNodeId: selectedNodeId,
+              });
+            }}
           />
         </div>
       </main>

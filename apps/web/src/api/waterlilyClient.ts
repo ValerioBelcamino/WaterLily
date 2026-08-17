@@ -119,6 +119,14 @@ function providerDescriptors(value: unknown): readonly ProviderDescriptor[] {
         !isRecord(model.capabilities) ||
         typeof model.id !== 'string' ||
         typeof model.name !== 'string' ||
+        (model.contextWindowTokens !== undefined &&
+          model.contextWindowTokens !== null &&
+          (!Number.isSafeInteger(model.contextWindowTokens) ||
+            (model.contextWindowTokens as number) <= 0)) ||
+        (model.maxOutputTokens !== undefined &&
+          model.maxOutputTokens !== null &&
+          (!Number.isSafeInteger(model.maxOutputTokens) ||
+            (model.maxOutputTokens as number) <= 0)) ||
         typeof model.capabilities.nativeFiles !== 'boolean' ||
         (model.capabilities.maxFileBytes !== null &&
           (!Number.isSafeInteger(model.capabilities.maxFileBytes) ||
@@ -146,6 +154,14 @@ function providerDescriptors(value: unknown): readonly ProviderDescriptor[] {
         },
         id: model.id,
         name: model.name,
+        ...(model.contextWindowTokens === undefined
+          ? {}
+          : {
+              contextWindowTokens: model.contextWindowTokens as number | null,
+            }),
+        ...(model.maxOutputTokens === undefined
+          ? {}
+          : { maxOutputTokens: model.maxOutputTokens as number | null }),
       };
     });
     return {

@@ -415,6 +415,87 @@ describe('WaterLily store', () => {
     expect(state.selectedNodeIds).toEqual(['node-test-merge']);
   });
 
+  it('creates editable checkpoint roots and revision-pinned template inputs', async () => {
+    const store = useWaterLilyStore.getState();
+    store.createCheckpoint({
+      blockId: 'block-checkpoint',
+      createdAt: CREATED_AT,
+      nodeId: 'node-checkpoint',
+      provenanceEdgeIds: ['edge-checkpoint-a', 'edge-checkpoint-b'],
+      revisionId: 'revision-checkpoint',
+      sourceNodeIds: ['node-answer', 'node-side-answer'],
+      text: 'Stable exam summary',
+      title: 'Exam checkpoint',
+    });
+    let state = useWaterLilyStore.getState();
+    expect(state.selectedNodeIds).toEqual(['node-checkpoint']);
+    expect(state.graph.nodes['node-checkpoint']).toMatchObject({
+      kind: 'summary',
+      title: 'Exam checkpoint',
+    });
+    expect(state.graph.revisions['revision-checkpoint']?.metadata).toEqual({
+      checkpoint: { sourceCount: 2, version: 1 },
+    });
+    expect(
+      Object.values(state.graph.edges)
+        .filter((edge) => edge.targetNodeId === 'node-checkpoint')
+        .map((edge) => edge.kind),
+    ).toEqual(['provenance', 'provenance']);
+
+    store.reviseText({
+      blockId: 'block-checkpoint',
+      createdAt: '2026-08-05T14:00:01.000Z',
+      nodeId: 'node-checkpoint',
+      revisionId: 'revision-checkpoint-template',
+      text: 'Stable exam summary\n\nRecall: {{mechanism}}',
+    });
+    store.bindTemplateVariable({
+      createdAt: '2026-08-05T14:00:02.000Z',
+      name: 'mechanism',
+      revisionId: 'revision-checkpoint-bound',
+      sourceNodeId: 'node-answer',
+      targetBlockId: 'block-checkpoint',
+      targetNodeId: 'node-checkpoint',
+    });
+    state = useWaterLilyStore.getState();
+    expect(
+      state.graph.revisions['revision-checkpoint-bound']?.blocks[0],
+    ).toMatchObject({
+      template: {
+        bindings: [
+          {
+            name: 'mechanism',
+            sourceNodeId: 'node-answer',
+            sourceRevisionId: 'revision-node-answer',
+          },
+        ],
+      },
+    });
+    const compiled = await compileContext({
+      graph: state.graph,
+      heads: [{ label: 'Checkpoint', nodeId: 'node-checkpoint', slot: 0 }],
+    });
+    expect(compiled.common.items).toHaveLength(1);
+    const compiledBlock = compiled.common.items[0]?.blocks[0];
+    expect(compiledBlock?.type).toBe('text');
+    expect(compiledBlock?.type === 'text' ? compiledBlock.text : '').toContain(
+      'ATP synthase',
+    );
+
+    store.unbindTemplateVariable({
+      createdAt: '2026-08-05T14:00:03.000Z',
+      name: 'mechanism',
+      revisionId: 'revision-checkpoint-unbound',
+      targetBlockId: 'block-checkpoint',
+      targetNodeId: 'node-checkpoint',
+    });
+    expect(
+      useWaterLilyStore.getState().graph.revisions[
+        'revision-checkpoint-unbound'
+      ]?.blocks[0],
+    ).toMatchObject({ template: { bindings: [] } });
+  });
+
   it('splits a revision into independently selected provenance roots', () => {
     useWaterLilyStore.getState().split({
       createdAt: CREATED_AT,

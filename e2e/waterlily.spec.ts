@@ -135,6 +135,50 @@ test('generates from a graph head and persists graph and view changes', async ({
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Excluded' })).toBeVisible();
 
+  await page.getByRole('button', { name: /Checkpoint/ }).click();
+  await page.getByLabel('Node title').fill('Durable exam checkpoint');
+  await page
+    .getByLabel('Persistent summary')
+    .fill('Compact understanding: {{mechanism}}');
+  await page.getByRole('button', { name: 'Create summary checkpoint' }).click();
+  await expect(page.getByText('context root')).toBeVisible();
+  await page.getByLabel('Source for mechanism').selectOption('node-answer');
+  await expect(page.locator('.template-binding-edge')).toHaveCount(1);
+  await expect(page.locator('.template-binding-edge')).toHaveClass(
+    /context-flow-edge--active/u,
+  );
+  await expect(
+    page.getByRole('article', { name: /^Mechanism overview, assistant/ }),
+  ).toHaveAttribute('data-flow-state', 'active');
+  await page.getByRole('button', { name: 'Edit node content' }).click();
+  await page
+    .getByLabel('Editable content')
+    .fill('Edited compact understanding: {{mechanism}}');
+  await page.getByRole('button', { name: /Save revision/ }).click();
+  await expect(page.getByLabel('Source for mechanism')).toHaveValue(
+    'node-answer',
+  );
+  await expect(
+    page.getByRole('button', {
+      name: /Oxidative phosphorylation 11 nodes/,
+    }),
+  ).toBeVisible();
+
+  await page.waitForTimeout(700);
+  await page.reload();
+  await expect(page.getByText('online', { exact: true })).toBeVisible();
+  await page
+    .getByRole('article', { name: /^Durable exam checkpoint, summary/ })
+    .click();
+  await expect(page.getByLabel('Source for mechanism')).toHaveValue(
+    'node-answer',
+  );
+  await expect(
+    page
+      .getByLabel('Node inspector')
+      .getByText('Edited compact understanding: {{mechanism}}'),
+  ).toBeVisible();
+
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export' }).click();
   const download = await downloadPromise;
@@ -151,15 +195,16 @@ test('generates from a graph head and persists graph and view changes', async ({
   await expect(page.getByText(/Ready to import .*\.waterlily/u)).toBeVisible();
   await page.getByRole('button', { name: 'Validate & import' }).click();
   await expect(
-    page.getByText('Imported 10 nodes and 1 attachment.'),
+    page.getByText('Imported 11 nodes and 1 attachment.'),
   ).toBeVisible();
   await expect(
     page.getByRole('button', {
-      name: /Oxidative phosphorylation 20 nodes/,
+      name: /Oxidative phosphorylation 22 nodes/,
     }),
   ).toBeVisible();
   // Wait for React Flow's controlled projection to reconcile all imported
   // nodes; the sidebar count updates one render earlier on slower machines.
-  await expect(page.locator('.react-flow__node-conversation')).toHaveCount(20);
+  await expect(page.locator('.react-flow__node-conversation')).toHaveCount(22);
   await expect(page.locator('.conversation-node--attachment')).toHaveCount(2);
+  await expect(page.locator('.template-binding-edge')).toHaveCount(2);
 });
