@@ -1,0 +1,127 @@
+name: Desktop packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths:
+      - '.github/workflows/desktop.yml'
+      - 'apps/desktop/**'
+      - 'apps/server/**'
+      - 'packages/**'
+      - 'eslint.config.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig*.json'
+      - 'turbo.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux x64 (.deb)
+            os: ubuntu-latest
+            artifact: waterlily-linux-x64
+            executable: apps/desktop/.package/out/WaterLily-linux-x64/waterlily
+          - label: Windows x64 (Squirrel)
+            os: windows-latest
+            artifact: waterlily-windows-x64
+            executable: apps/desktop/.package/out/WaterLily-win32-x64/waterlily.exe
+          - label: macOS arm64 (.dmg and .zip)
+            os: macos-latest
+            artifact: waterlily-macos-arm64
+            executable: apps/desktop/.package/out/WaterLily-darwin-arm64/WaterLily.app/Contents/MacOS/waterlily
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Linux packaging and display tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes fakeroot xvfb
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build application
+        run: pnpm build
+
+      - name: Run desktop unit tests
+        run: pnpm --filter @waterlily/desktop test
+
+      - name: Build platform installer
+        run: pnpm --filter @waterlily/desktop make
+
+      - name: Smoke-test packaged Linux app
+        if: runner.os == 'Linux'
+        env:
+          WATERLILY_DESKTOP_EXECUTABLE:
+            ${{ github.workspace }}/${{ matrix.executable }}
+        run:
+          xvfb-run --auto-servernum pnpm --filter @waterlily/desktop
+          test:packaged
+
+      - name: Smoke-test packaged app
+        if: runner.os != 'Linux'
+        env:
+          WATERLILY_DESKTOP_EXECUTABLE:
+            ${{ github.workspace }}/${{ matrix.executable }}
+        run: pnpm --filter @waterlily/desktop test:packaged
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: apps/desktop/.package/out/make/**
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  draft-release:
+    name: Create draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download platform installers
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create unsigned draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          mapfile -d '' files < <(find artifacts -type f -print0)
+          gh release create "$RELEASE_TAG" "${files[@]}" \
+            --draft \
+            --generate-notes \
+            --title "WaterLily $RELEASE_TAG (unsigned alpha)"
