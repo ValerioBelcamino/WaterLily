@@ -5,6 +5,15 @@
   "description": "Loopback-only persistence and provider service for WaterLily",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "pnpm build && node --env-file-if-exists=../../.env dist/main.js",
