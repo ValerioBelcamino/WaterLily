@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  connectContext,
+  createNode,
   reviseNode,
   reviseTextBlock,
   setTemplateBinding,
@@ -77,6 +79,63 @@ describe('workspace repository', () => {
           ],
         },
       });
+    });
+  });
+
+  it('round-trips executable code and execution-result nodes', () => {
+    withDatabase((handle) => {
+      let graph = createNode(sampleGraph(), {
+        blocks: [
+          {
+            format: 'plain',
+            id: 'code-block',
+            text: 'print(42)',
+            type: 'text',
+          },
+        ],
+        createdAt: timestamp(20),
+        kind: 'code',
+        metadata: { language: 'python' },
+        nodeId: 'code-node',
+        revisionId: 'code-revision',
+        title: 'Python cell',
+      });
+      graph = connectContext(graph, {
+        createdAt: timestamp(21),
+        edgeId: 'code-context',
+        label: 'notebook state',
+        slot: 0,
+        sourceNodeId: 'graph-1-answer',
+        targetNodeId: 'code-node',
+      });
+      graph = createNode(graph, {
+        blocks: [
+          {
+            format: 'plain',
+            id: 'execution-block',
+            text: '42',
+            type: 'text',
+          },
+        ],
+        createdAt: timestamp(22),
+        kind: 'execution',
+        metadata: { exitCode: 0, language: 'python' },
+        nodeId: 'execution-node',
+        revisionId: 'execution-revision',
+        title: 'Python output',
+      });
+      graph = connectContext(graph, {
+        createdAt: timestamp(23),
+        edgeId: 'execution-context',
+        label: 'execution output',
+        slot: 0,
+        sourceNodeId: 'code-node',
+        targetNodeId: 'execution-node',
+      });
+      const repository = new WorkspaceRepository(handle.db);
+      repository.insert({ graph, state });
+
+      expect(repository.get(graph.id)).toEqual({ graph, state });
     });
   });
 

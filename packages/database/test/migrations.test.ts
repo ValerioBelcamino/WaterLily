@@ -38,6 +38,7 @@ describe('migration loading and application', () => {
     expect(migrations.map((migration) => migration.id)).toEqual([
       '0001_initial',
       '0002_workspace_state',
+      '0003_code_execution_nodes',
     ]);
     expect(migrations[0]?.checksum).toMatch(/^[a-f0-9]{64}$/u);
     expect(migrations[0]?.sql).toContain('CREATE TABLE graphs');
@@ -51,7 +52,7 @@ describe('migration loading and application', () => {
 
       expect(
         sqlite.prepare('SELECT count(*) AS count FROM schema_migrations').get(),
-      ).toEqual({ count: 2 });
+      ).toEqual({ count: 3 });
       expect(
         sqlite
           .prepare(
@@ -59,6 +60,92 @@ describe('migration loading and application', () => {
           )
           .get(),
       ).toEqual({ count: 1 });
+    });
+  });
+
+  it('preserves existing graphs while enabling code and execution nodes', () => {
+    withMemoryDatabase((sqlite) => {
+      const migrations = loadMigrations();
+      applyMigrations(sqlite, migrations.slice(0, 2));
+      sqlite.transaction(() => {
+        sqlite
+          .prepare(
+            'INSERT INTO graphs (id, version, created_at, updated_at) VALUES (?, 1, ?, ?)',
+          )
+          .run(
+            'graph-upgrade',
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-01T00:00:00.000Z',
+          );
+        sqlite
+          .prepare(
+            `INSERT INTO graph_nodes (
+              id, graph_id, kind, role, title, tags_json,
+              current_revision_id, created_at, updated_at, deleted_at
+            ) VALUES (?, ?, 'note', NULL, ?, '[]', ?, ?, ?, NULL)`,
+          )
+          .run(
+            'node-existing',
+            'graph-upgrade',
+            'Existing note',
+            'revision-existing',
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-01T00:00:00.000Z',
+          );
+        sqlite
+          .prepare(
+            `INSERT INTO node_revisions (
+              id, graph_id, node_id, blocks_json, metadata_json, created_at
+            ) VALUES (?, ?, ?, '[]', '{}', ?)`,
+          )
+          .run(
+            'revision-existing',
+            'graph-upgrade',
+            'node-existing',
+            '2026-01-01T00:00:00.000Z',
+          );
+      })();
+
+      applyMigrations(sqlite, migrations);
+
+      expect(
+        sqlite
+          .prepare('SELECT kind, title FROM graph_nodes WHERE id = ?')
+          .get('node-existing'),
+      ).toEqual({ kind: 'note', title: 'Existing note' });
+      sqlite.transaction(() => {
+        for (const kind of ['code', 'execution']) {
+          sqlite
+            .prepare(
+              `INSERT INTO graph_nodes (
+                id, graph_id, kind, role, title, tags_json,
+                current_revision_id, created_at, updated_at, deleted_at
+              ) VALUES (?, ?, ?, NULL, ?, '[]', ?, ?, ?, NULL)`,
+            )
+            .run(
+              `node-${kind}`,
+              'graph-upgrade',
+              kind,
+              `${kind} node`,
+              `revision-${kind}`,
+              '2026-01-01T00:00:01.000Z',
+              '2026-01-01T00:00:01.000Z',
+            );
+          sqlite
+            .prepare(
+              `INSERT INTO node_revisions (
+                id, graph_id, node_id, blocks_json, metadata_json, created_at
+              ) VALUES (?, ?, ?, '[]', '{}', ?)`,
+            )
+            .run(
+              `revision-${kind}`,
+              'graph-upgrade',
+              `node-${kind}`,
+              '2026-01-01T00:00:01.000Z',
+            );
+        }
+      })();
+      expect(sqlite.pragma('foreign_key_check')).toEqual([]);
     });
   });
 
