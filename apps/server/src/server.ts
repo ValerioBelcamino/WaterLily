@@ -135,6 +135,16 @@ function providerProfileIdFromPath(pathname: string): string | null {
   }
 }
 
+function attachmentIdFromPath(pathname: string): string | null {
+  const match = /^\/api\/attachments\/([^/]+)$/u.exec(pathname);
+  if (match === null) return null;
+  try {
+    return decodeURIComponent(match[1] as string);
+  } catch {
+    throw new HttpError(400, 'Attachment path is malformed');
+  }
+}
+
 function providerRegistrations(
   providers: WaterLilyHandlerOptions['providers'],
 ): readonly RegisteredProvider[] {
@@ -411,6 +421,33 @@ export function createWaterLilyHandler(
           resolved.attachments.put({ bytes, mediaType, name }),
           201,
         );
+      }
+      const attachmentId = attachmentIdFromPath(url.pathname);
+      if (attachmentId !== null && request.method === 'GET') {
+        if (resolved.attachments === undefined)
+          throw new HttpError(503, 'Attachment storage is unavailable');
+        const attachment = resolved.attachments.read(attachmentId);
+        if (attachment === null)
+          throw new HttpError(404, 'Attachment not found');
+        return new Response(attachment.bytes, {
+          headers: {
+            ...SECURITY_HEADERS,
+            'content-length': String(attachment.descriptor.size),
+            'content-type': attachment.descriptor.mediaType,
+            'x-waterlily-filename': encodeURIComponent(
+              attachment.descriptor.name,
+            ),
+            'x-waterlily-sha256': attachment.descriptor.sha256,
+          },
+        });
+      }
+      if (attachmentId !== null && request.method === 'DELETE') {
+        assertSameOrigin(request);
+        if (resolved.attachments === undefined)
+          throw new HttpError(503, 'Attachment storage is unavailable');
+        if (!resolved.attachments.remove(attachmentId))
+          throw new HttpError(404, 'Attachment not found');
+        return new Response(null, { headers: SECURITY_HEADERS, status: 204 });
       }
       if (
         request.method === 'POST' &&

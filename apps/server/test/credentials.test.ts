@@ -31,6 +31,8 @@ const getAttachment = vi.fn(() => ({
 
 const attachments: AttachmentStore = {
   get: getAttachment,
+  read: vi.fn(() => null),
+  remove: vi.fn(() => false),
   put: vi.fn(() => {
     throw new Error('not used');
   }),

@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -37,9 +39,25 @@ export class FileAttachmentStore implements AttachmentStore {
   }
 
   public get(id: string): LoadedAttachment {
+    const record = this.read(id);
+    if (record === null) throw new TypeError('Attachment does not exist');
+    return {
+      bytes: record.bytes,
+      mediaType: record.descriptor.mediaType,
+      name: record.descriptor.name,
+    };
+  }
+
+  public read(id: string): {
+    readonly bytes: Uint8Array;
+    readonly descriptor: AttachmentDescriptor;
+  } | null {
     const normalized = safeId(id);
+    const metadataPath = join(this.#root, `${normalized}.json`);
+    const blobPath = join(this.#root, `${normalized}.blob`);
+    if (!existsSync(metadataPath) && !existsSync(blobPath)) return null;
     const descriptor = JSON.parse(
-      readFileSync(join(this.#root, `${normalized}.json`), 'utf8'),
+      readFileSync(metadataPath, 'utf8'),
     ) as AttachmentDescriptor;
     if (
       descriptor.id !== normalized ||
@@ -50,15 +68,26 @@ export class FileAttachmentStore implements AttachmentStore {
       descriptor.size < 0
     )
       throw new TypeError('Attachment metadata is invalid');
-    const bytes = readFileSync(join(this.#root, `${normalized}.blob`));
-    const sha256 = createHash('sha256').update(bytes).digest('hex');
-    if (bytes.byteLength !== descriptor.size || sha256 !== descriptor.sha256)
+    const storedBytes = readFileSync(blobPath);
+    const sha256 = createHash('sha256').update(storedBytes).digest('hex');
+    if (
+      storedBytes.byteLength !== descriptor.size ||
+      sha256 !== descriptor.sha256
+    )
       throw new TypeError('Attachment data failed its integrity check');
-    return {
-      bytes,
-      mediaType: descriptor.mediaType,
-      name: descriptor.name,
-    };
+    const bytes = new Uint8Array(storedBytes);
+    return { bytes, descriptor };
+  }
+
+  public remove(id: string): boolean {
+    const normalized = safeId(id);
+    const paths = [
+      join(this.#root, `${normalized}.json`),
+      join(this.#root, `${normalized}.blob`),
+    ];
+    const existing = paths.filter((path) => existsSync(path));
+    for (const path of existing) unlinkSync(path);
+    return existing.length > 0;
   }
 
   public put(input: {

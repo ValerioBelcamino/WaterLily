@@ -22,6 +22,11 @@ export interface RegisteredProvider {
 
 export interface AttachmentStore {
   get(id: string): LoadedAttachment;
+  read(id: string): {
+    readonly bytes: Uint8Array;
+    readonly descriptor: AttachmentDescriptor;
+  } | null;
+  remove(id: string): boolean;
   put(input: {
     readonly bytes: Uint8Array;
     readonly mediaType: string;

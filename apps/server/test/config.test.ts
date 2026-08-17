@@ -85,6 +85,8 @@ describe('provider configuration', () => {
         mediaType: 'application/pdf',
         name: 'paper.pdf',
       })),
+      read: vi.fn(() => null),
+      remove: vi.fn(() => false),
       put: vi.fn(() => {
         throw new Error('unused');
       }),

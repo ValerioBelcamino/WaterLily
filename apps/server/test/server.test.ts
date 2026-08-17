@@ -627,6 +627,12 @@ describe('WaterLily service handler', () => {
         get() {
           throw new Error('unused');
         },
+        read() {
+          return null;
+        },
+        remove() {
+          return false;
+        },
         put,
       },
       providers: [],
@@ -697,6 +703,95 @@ describe('WaterLily service handler', () => {
               'x-waterlily-filename': encodeURIComponent('notes.txt'),
             },
             method: 'POST',
+          }),
+        )
+      ).status,
+    ).toBe(503);
+  });
+
+  it('downloads and removes attachments without exposing unrelated metadata', async () => {
+    const id = 'attachment-00000000-0000-4000-8000-000000000000';
+    const descriptor = {
+      id,
+      mediaType: 'text/plain',
+      name: 'study notes.txt',
+      sha256: 'a'.repeat(64),
+      size: 3,
+    };
+    const read = vi.fn((requestedId: string) =>
+      requestedId === id
+        ? { bytes: new Uint8Array([1, 2, 3]), descriptor }
+        : null,
+    );
+    const remove = vi.fn((requestedId: string) => requestedId === id);
+    const handle = createWaterLilyHandler({
+      attachments: {
+        get() {
+          throw new Error('unused');
+        },
+        put() {
+          throw new Error('unused');
+        },
+        read,
+        remove,
+      },
+      providers: [],
+      workspaces: new MemoryStore(),
+    });
+    const response = await handle(
+      new Request(`http://127.0.0.1/api/attachments/${id}`),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/plain');
+    expect(response.headers.get('x-waterlily-filename')).toBe(
+      encodeURIComponent(descriptor.name),
+    );
+    expect(response.headers.get('x-waterlily-sha256')).toBe(descriptor.sha256);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+
+    expect(
+      (
+        await handle(
+          new Request(`http://127.0.0.1/api/attachments/${id}`, {
+            method: 'DELETE',
+          }),
+        )
+      ).status,
+    ).toBe(204);
+    expect(read).toHaveBeenCalledWith(id);
+    expect(remove).toHaveBeenCalledWith(id);
+    expect(
+      (
+        await handle(
+          new Request('http://127.0.0.1/api/attachments/attachment-missing'),
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await handle(
+          new Request('http://127.0.0.1/api/attachments/attachment-missing', {
+            method: 'DELETE',
+          }),
+        )
+      ).status,
+    ).toBe(404);
+
+    const unavailable = createWaterLilyHandler({
+      providers: [],
+      workspaces: new MemoryStore(),
+    });
+    expect(
+      (await unavailable(new Request(`http://127.0.0.1/api/attachments/${id}`)))
+        .status,
+    ).toBe(503);
+    expect(
+      (
+        await unavailable(
+          new Request(`http://127.0.0.1/api/attachments/${id}`, {
+            method: 'DELETE',
           }),
         )
       ).status,

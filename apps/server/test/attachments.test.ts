@@ -51,6 +51,7 @@ describe('file attachment store', () => {
       mediaType: 'text/plain',
       name: 'notes.txt',
     });
+    expect(store.read(descriptor.id)).toEqual({ bytes, descriptor });
     expect(statSync(root).mode & 0o777).toBe(0o700);
     expect(statSync(join(root, `${descriptor.id}.blob`)).mode & 0o777).toBe(
       0o600,
@@ -58,6 +59,9 @@ describe('file attachment store', () => {
     expect(statSync(join(root, `${descriptor.id}.json`)).mode & 0o777).toBe(
       0o600,
     );
+    expect(store.remove(descriptor.id)).toBe(true);
+    expect(store.read(descriptor.id)).toBeNull();
+    expect(store.remove(descriptor.id)).toBe(false);
   });
 
   it('rejects unsafe identifiers and tampered blobs or metadata', () => {
