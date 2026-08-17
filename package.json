@@ -17,10 +17,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint e2e playwright.config.ts && turbo run lint",
+    "make:desktop": "pnpm build && pnpm --filter @waterlily/desktop make",
+    "package:desktop": "pnpm build && pnpm --filter @waterlily/desktop package",
     "start:server": "pnpm --filter @waterlily/server start",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "test:e2e": "pnpm build && playwright test",
+    "test:desktop": "pnpm --filter @waterlily/desktop test:packaged",
     "test:live:deepseek": "pnpm --filter @waterlily/providers test:live && pnpm --filter @waterlily/server test:live",
     "typecheck": "tsc -p tsconfig.json --noEmit && turbo run typecheck"
   },

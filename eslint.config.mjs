@@ -32,7 +32,7 @@ export default tseslint.config(
   },
   {
     ...tseslint.configs.disableTypeChecked,
-    files: ['e2e/*.mjs'],
+    files: ['apps/desktop/scripts/*.mjs', 'e2e/*.mjs'],
   },
   {
     ...reactHooks.configs.flat['recommended-latest'],

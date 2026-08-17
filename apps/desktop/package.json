@@ -1,0 +1,51 @@
+{
+  "name": "@waterlily/desktop",
+  "productName": "WaterLily",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop distribution of the WaterLily conversation graph editor",
+  "author": "WaterLily contributors",
+  "homepage": "https://github.com/ValerioBelcamino/WaterLily",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/main.js",
+  "files": [
+    "assets",
+    "dist",
+    "forge.config.ts"
+  ],
+  "scripts": {
+    "build": "vite build && node scripts/copyRenderer.mjs",
+    "lint": "eslint src test e2e scripts forge.config.ts playwright.config.ts vite.config.ts vitest.config.ts",
+    "make": "node scripts/stage.mjs && electron-forge make .package",
+    "package": "node scripts/stage.mjs && electron-forge package .package",
+    "start": "electron-forge start",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:packaged": "playwright test --config=playwright.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "catalog:",
+    "electron-squirrel-startup": "catalog:"
+  },
+  "devDependencies": {
+    "@waterlily/database": "workspace:*",
+    "@waterlily/server": "workspace:*",
+    "@waterlily/web": "workspace:*",
+    "@electron-forge/cli": "catalog:",
+    "@electron-forge/maker-deb": "catalog:",
+    "@electron-forge/maker-dmg": "catalog:",
+    "@electron-forge/maker-squirrel": "catalog:",
+    "@electron-forge/maker-zip": "catalog:",
+    "@electron-forge/plugin-fuses": "catalog:",
+    "@electron-forge/shared-types": "catalog:",
+    "@electron/fuses": "catalog:",
+    "@playwright/test": "catalog:",
+    "@types/electron-squirrel-startup": "catalog:",
+    "@types/node": "catalog:",
+    "electron": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
