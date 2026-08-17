@@ -898,3 +898,37 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 - Forge packages Linux x64, and Playwright launches the resulting Electron
   executable with its private API and sandboxed renderer. No live provider call
   or credential access was required for these deterministic checks.
+
+## 2026-08-17 — Browser study session and executable-node persistence
+
+### Findings and corrections
+
+- Drove a fresh Chromium profile through a 21-node deep-learning study session:
+  probability foundations, loss functions, optimization, merged branches, NumPy
+  and PyTorch notebook cells, JAX concept excerpts, a grouped selection, an
+  editable checkpoint with a pinned template input, a dropped Markdown file,
+  model generation, Focus mode, reload, and archive export/import.
+- The session exposed a stale SQLite check constraint: the domain supported
+  `code` and `execution` nodes, but the original database migration did not.
+  Migration `0003_code_execution_nodes` rebuilds the three related graph tables
+  transactionally, preserves existing graphs and indexes, and admits both node
+  kinds. Upgrade and repository round-trip tests prevent a regression.
+- The same browser pass showed that the provider/action strip could cover the
+  Canvas/Focus switcher at normal desktop widths. The toolbar now reserves the
+  actions' intrinsic width and uses a two-row layout on narrower desktop
+  windows.
+
+### Verification evidence
+
+- The isolated browser session computed a stable NumPy binary-cross-entropy and
+  minimizer, replayed it before a PyTorch reverse-mode gradient cell, persisted
+  both execution outputs, and completed the checkpoint generation afterward. JAX
+  was intentionally documented rather than installed into the host.
+- Reload preserved the editable checkpoint and exact template pin. The exported
+  21-node archive imported collision-safely to 42 nodes, two attachment nodes,
+  and two binding edges.
+- `pnpm check` passes all 39 tasks with 504 deterministic tests; all 19 coverage
+  tasks pass. Production Chromium E2E, Linux packaging, and the packaged
+  Electron smoke test also pass.
+- The provider was a deterministic local mock. No live model request, API key,
+  package installation, or billable service was used.
