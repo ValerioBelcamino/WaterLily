@@ -179,6 +179,7 @@ describe('graph view model', () => {
         'node-synthesis',
         'node-system',
       ],
+      mode: 'preview',
     });
     const nodes = toFlowNodes(sampleGraph, { activeFlow });
     expect(
@@ -194,7 +195,8 @@ describe('graph view model', () => {
       edges.find((edge) => edge.id === 'edge-system-question'),
     ).toMatchObject({
       animated: true,
-      className: 'context-flow-edge context-flow-edge--active',
+      className:
+        'context-flow-edge context-flow-edge--active context-flow-edge--preview',
       data: { flowState: 'active' },
       style: { opacity: 1 },
     });

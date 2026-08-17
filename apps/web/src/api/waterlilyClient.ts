@@ -1,9 +1,13 @@
 import {
   parseGenerationStreamLine,
   parseWorkspaceSnapshot,
+  type AttachmentDescriptor,
+  type CreateProviderProfileRequest,
   type GenerationApiRequest,
   type GenerationStreamItem,
   type ProviderDescriptor,
+  type PythonExecutionRequest,
+  type PythonExecutionResult,
   type WorkspaceSnapshot,
 } from '@waterlily/api-contract';
 
@@ -85,24 +89,108 @@ function providerDescriptors(value: unknown): readonly ProviderDescriptor[] {
       !('available' in provider) ||
       !('defaultModel' in provider) ||
       !('id' in provider) ||
+      !('models' in provider) ||
       !('name' in provider) ||
+      !('providerType' in provider) ||
+      !('source' in provider) ||
       typeof provider.available !== 'boolean' ||
       typeof provider.defaultModel !== 'string' ||
       typeof provider.id !== 'string' ||
-      typeof provider.name !== 'string'
+      typeof provider.name !== 'string' ||
+      !Array.isArray(provider.models) ||
+      !['deepseek', 'openai', 'openai-compatible'].includes(
+        String(provider.providerType),
+      ) ||
+      !['environment', 'stored'].includes(String(provider.source))
     )
       throw new WaterLilyApiError(
         'INVALID_RESPONSE',
         'The local service returned an invalid provider',
         200,
       );
+    const models = provider.models.map((model) => {
+      if (
+        !isRecord(model) ||
+        !isRecord(model.capabilities) ||
+        typeof model.id !== 'string' ||
+        typeof model.name !== 'string' ||
+        typeof model.capabilities.nativeFiles !== 'boolean' ||
+        (model.capabilities.maxFileBytes !== null &&
+          (!Number.isSafeInteger(model.capabilities.maxFileBytes) ||
+            (model.capabilities.maxFileBytes as number) <= 0)) ||
+        !Array.isArray(model.capabilities.inputExtensions) ||
+        !Array.isArray(model.capabilities.inputMimeTypes) ||
+        model.capabilities.inputExtensions.some(
+          (extension) => typeof extension !== 'string',
+        ) ||
+        model.capabilities.inputMimeTypes.some(
+          (mediaType) => typeof mediaType !== 'string',
+        )
+      )
+        throw new WaterLilyApiError(
+          'INVALID_RESPONSE',
+          'The local service returned an invalid provider model',
+          200,
+        );
+      return {
+        capabilities: {
+          inputExtensions: model.capabilities.inputExtensions as string[],
+          inputMimeTypes: model.capabilities.inputMimeTypes as string[],
+          maxFileBytes: model.capabilities.maxFileBytes as number | null,
+          nativeFiles: model.capabilities.nativeFiles,
+        },
+        id: model.id,
+        name: model.name,
+      };
+    });
     return {
       available: provider.available,
       defaultModel: provider.defaultModel,
       id: provider.id,
+      models,
       name: provider.name,
+      providerType: provider.providerType as ProviderDescriptor['providerType'],
+      source: provider.source as ProviderDescriptor['source'],
     };
   });
+}
+
+function attachmentDescriptor(value: unknown): AttachmentDescriptor {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.mediaType !== 'string' ||
+    typeof value.name !== 'string' ||
+    typeof value.sha256 !== 'string' ||
+    !/^[0-9a-f]{64}$/u.test(value.sha256) ||
+    !Number.isInteger(value.size) ||
+    (value.size as number) < 0
+  )
+    throw new WaterLilyApiError(
+      'INVALID_RESPONSE',
+      'The local service returned invalid attachment metadata',
+      200,
+    );
+  return value as unknown as AttachmentDescriptor;
+}
+
+function pythonExecutionResult(value: unknown): PythonExecutionResult {
+  if (
+    !isRecord(value) ||
+    !Number.isSafeInteger(value.durationMilliseconds) ||
+    (value.durationMilliseconds as number) < 0 ||
+    (value.exitCode !== null && !Number.isSafeInteger(value.exitCode)) ||
+    typeof value.stderr !== 'string' ||
+    typeof value.stdout !== 'string' ||
+    typeof value.timedOut !== 'boolean' ||
+    typeof value.truncated !== 'boolean'
+  )
+    throw new WaterLilyApiError(
+      'INVALID_RESPONSE',
+      'The local service returned an invalid Python result',
+      200,
+    );
+  return value as unknown as PythonExecutionResult;
 }
 
 async function decodeGeneration(
@@ -182,6 +270,61 @@ export class WaterLilyClient {
         }),
       ),
     );
+  }
+
+  public async createProviderProfile(
+    input: CreateProviderProfileRequest,
+  ): Promise<ProviderDescriptor> {
+    const response = await this.#fetch('/api/provider-profiles', {
+      body: JSON.stringify(input),
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    });
+    const profile = await checkedJson(response);
+    return providerDescriptors({
+      providers: [profile],
+    })[0] as ProviderDescriptor;
+  }
+
+  public async removeProviderProfile(profileId: string): Promise<void> {
+    const response = await this.#fetch(
+      `/api/provider-profiles/${encodeURIComponent(profileId)}`,
+      { method: 'DELETE' },
+    );
+    if (!response.ok)
+      throw apiError(await responseJson(response), response.status);
+  }
+
+  public async uploadAttachment(file: File): Promise<AttachmentDescriptor> {
+    const response = await this.#fetch('/api/attachments', {
+      body: file,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-WaterLily-Filename': encodeURIComponent(file.name),
+      },
+      method: 'POST',
+    });
+    return attachmentDescriptor(await checkedJson(response));
+  }
+
+  public async executePython(
+    input: PythonExecutionRequest,
+    signal?: AbortSignal,
+  ): Promise<PythonExecutionResult> {
+    const response = await this.#fetch('/api/executions/python', {
+      body: JSON.stringify(input),
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+      ...(signal === undefined ? {} : { signal }),
+    });
+    return pythonExecutionResult(await checkedJson(response));
   }
 
   public async load(graphId: string): Promise<WorkspaceSnapshot | null> {

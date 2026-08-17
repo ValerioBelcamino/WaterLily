@@ -1,7 +1,8 @@
 import { FileJson2, X } from 'lucide-react';
 import { useEffect, useState, type SyntheticEvent } from 'react';
 
-export type OperationKind = 'branch' | 'group' | 'import' | 'merge' | 'split';
+export type OperationKind =
+  'branch' | 'code' | 'group' | 'import' | 'merge' | 'split';
 
 export type OperationSubmission =
   | {
@@ -12,6 +13,11 @@ export type OperationSubmission =
   | {
       readonly kind: 'merge';
       readonly text: string;
+      readonly title: string | null;
+    }
+  | {
+      readonly kind: 'code';
+      readonly source: string;
       readonly title: string | null;
     }
   | {
@@ -37,6 +43,7 @@ export interface OperationDialogProps {
 
 const LABELS: Readonly<Record<OperationKind, string>> = {
   branch: 'Branch from node',
+  code: 'Add Python cell',
   group: 'Group selected nodes',
   import: 'Import graph JSON',
   merge: 'Merge selected branches',
@@ -86,6 +93,14 @@ export function OperationDialog({
         await onSubmit({
           kind,
           text: text.trim(),
+          title: title.trim().length === 0 ? null : title.trim(),
+        });
+      } else if (kind === 'code') {
+        if (text.trim().length === 0)
+          throw new Error('Python code cannot be blank.');
+        await onSubmit({
+          kind,
+          source: text,
           title: title.trim().length === 0 ? null : title.trim(),
         });
       } else if (kind === 'split') {
@@ -165,6 +180,35 @@ export function OperationDialog({
                   }
                 />
               </label>
+            </>
+          ) : null}
+          {kind === 'code' ? (
+            <>
+              <label>
+                Cell title <span>optional</span>
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Explore the data"
+                />
+              </label>
+              <label>
+                Python code
+                <textarea
+                  autoFocus
+                  className="operation-dialog__code"
+                  required
+                  spellCheck={false}
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  placeholder={'values = [1, 2, 3]\nprint(sum(values))'}
+                />
+              </label>
+              <small>
+                Cells on the selected context path replay in one fresh local
+                Python process. This has your user permissions and is not a
+                security sandbox.
+              </small>
             </>
           ) : null}
           {kind === 'split' ? (

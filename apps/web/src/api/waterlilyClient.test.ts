@@ -82,7 +82,21 @@ describe('WaterLilyClient', () => {
                 available: true,
                 defaultModel: 'deepseek-v4-flash',
                 id: 'deepseek',
+                models: [
+                  {
+                    capabilities: {
+                      inputExtensions: [],
+                      inputMimeTypes: [],
+                      maxFileBytes: null,
+                      nativeFiles: false,
+                    },
+                    id: 'deepseek-v4-flash',
+                    name: 'DeepSeek V4 Flash',
+                  },
+                ],
                 name: 'DeepSeek',
+                providerType: 'deepseek',
+                source: 'environment',
               },
             ],
           })
@@ -94,7 +108,21 @@ describe('WaterLilyClient', () => {
         available: true,
         defaultModel: 'deepseek-v4-flash',
         id: 'deepseek',
+        models: [
+          {
+            capabilities: {
+              inputExtensions: [],
+              inputMimeTypes: [],
+              maxFileBytes: null,
+              nativeFiles: false,
+            },
+            id: 'deepseek-v4-flash',
+            name: 'DeepSeek V4 Flash',
+          },
+        ],
         name: 'DeepSeek',
+        providerType: 'deepseek',
+        source: 'environment',
       },
     ]);
     expect(await client.load(sampleGraph.id)).toEqual(workspace);
@@ -126,6 +154,133 @@ describe('WaterLilyClient', () => {
       expectedUpdatedAt: null,
       graph: { id: sampleGraph.id },
     });
+  });
+
+  it('manages profiles, attachments, and local Python execution', async () => {
+    const descriptor = {
+      available: true,
+      defaultModel: 'gpt-test',
+      id: 'profile-test',
+      models: [
+        {
+          capabilities: {
+            inputExtensions: ['pdf'],
+            inputMimeTypes: ['application/pdf'],
+            maxFileBytes: 1024,
+            nativeFiles: true,
+          },
+          id: 'gpt-test',
+          name: 'GPT test',
+        },
+      ],
+      name: 'Test profile',
+      providerType: 'openai',
+      source: 'stored',
+    } as const;
+    const attachment = {
+      id: 'attachment-test',
+      mediaType: 'application/pdf',
+      name: 'paper.pdf',
+      sha256: 'a'.repeat(64),
+      size: 3,
+    };
+    const execution = {
+      durationMilliseconds: 4,
+      exitCode: 0,
+      stderr: '',
+      stdout: '42\n',
+      timedOut: false,
+      truncated: false,
+    };
+    const fetchClient = fetchMock((input, init) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (url.includes('/provider-profiles/') && init?.method === 'DELETE')
+        return Promise.resolve(new Response(null, { status: 204 }));
+      if (url.endsWith('/provider-profiles'))
+        return Promise.resolve(Response.json(descriptor));
+      if (url.endsWith('/attachments'))
+        return Promise.resolve(Response.json(attachment));
+      return Promise.resolve(Response.json(execution));
+    });
+    const client = new WaterLilyClient(fetchClient);
+    const profileInput = {
+      apiKey: 'secret',
+      baseUrl: null,
+      label: 'Test profile',
+      models: [],
+      providerType: 'openai' as const,
+    };
+    await expect(client.createProviderProfile(profileInput)).resolves.toEqual(
+      descriptor,
+    );
+    await expect(
+      client.removeProviderProfile('profile/test'),
+    ).resolves.toBeUndefined();
+    const file = new File(['pdf'], 'paper.pdf', { type: 'application/pdf' });
+    await expect(client.uploadAttachment(file)).resolves.toEqual(attachment);
+    const signal = new AbortController().signal;
+    await expect(
+      client.executePython(
+        {
+          cells: [{ nodeId: 'node-code', source: 'print(42)' }],
+          graphId: 'graph-study',
+        },
+        signal,
+      ),
+    ).resolves.toEqual(execution);
+    expect(fetchClient).toHaveBeenCalledWith(
+      '/api/provider-profiles/profile%2Ftest',
+      { method: 'DELETE' },
+    );
+    expect(fetchClient).toHaveBeenCalledWith(
+      '/api/attachments',
+      expect.objectContaining({ body: file, method: 'POST' }),
+    );
+    expect(fetchClient).toHaveBeenCalledWith(
+      '/api/executions/python',
+      expect.objectContaining({ method: 'POST', signal }),
+    );
+  });
+
+  it('rejects malformed profile, attachment, Python, and delete responses', async () => {
+    const badValues = [
+      Response.json({ available: true }),
+      Response.json({ id: 'attachment', sha256: 'bad' }),
+      Response.json({ durationMilliseconds: -1 }),
+      Response.json(
+        { error: { code: 'NOPE', message: 'Cannot delete' } },
+        { status: 500 },
+      ),
+    ];
+    const client = new WaterLilyClient(
+      fetchMock(() => Promise.resolve(badValues.shift() as Response)),
+    );
+    await expect(
+      client.createProviderProfile({
+        apiKey: 'secret',
+        baseUrl: null,
+        label: 'Bad',
+        models: [],
+        providerType: 'openai',
+      }),
+    ).rejects.toBeInstanceOf(WaterLilyApiError);
+    await expect(
+      client.uploadAttachment(new File(['x'], 'x.txt')),
+    ).rejects.toBeInstanceOf(WaterLilyApiError);
+    await expect(
+      client.executePython({
+        cells: [{ nodeId: 'node-code', source: 'x' }],
+        graphId: 'graph',
+      }),
+    ).rejects.toBeInstanceOf(WaterLilyApiError);
+    await expect(client.removeProviderProfile('id')).rejects.toThrow(
+      'Cannot delete',
+    );
   });
 
   it('decodes one-byte NDJSON chunks and returns the committed workspace', async () => {

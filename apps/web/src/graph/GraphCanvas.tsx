@@ -9,9 +9,14 @@ import {
   type OnNodeDrag,
 } from '@xyflow/react';
 import type { GraphSnapshot } from '@waterlily/domain';
-import { useMemo, useRef, useState, type DragEvent } from 'react';
+import type {
+  AttachmentDescriptor,
+  ModelDescriptor,
+} from '@waterlily/api-contract';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 
 import { prepareDroppedFiles } from '../files/fileDrop';
+import { attachmentCompatibilityByNode } from '../files/compatibility';
 import { createPortableId } from '../ids';
 import { useWaterLilyStore } from '../state/waterlilyStore';
 import { CanvasGroupNode } from './CanvasGroupNode';
@@ -19,6 +24,7 @@ import { ConversationNode } from './ConversationNode';
 import {
   toFlowEdges,
   toFlowNodes,
+  deriveActiveContextFlow,
   type ActiveContextFlow,
   type WaterLilyFlowNode,
 } from './graphViewModel';
@@ -39,11 +45,22 @@ function miniMapColor(node: WaterLilyFlowNode): string {
 export interface GraphCanvasProps {
   readonly activeFlow?: ActiveContextFlow | null;
   readonly graph: GraphSnapshot;
+  readonly model: ModelDescriptor | null;
+  readonly uploadAttachment: (file: File) => Promise<AttachmentDescriptor>;
 }
 
-export function GraphCanvas({ activeFlow = null, graph }: GraphCanvasProps) {
+export function GraphCanvas({
+  activeFlow = null,
+  graph,
+  model,
+  uploadAttachment,
+}: GraphCanvasProps) {
   const [dragActive, setDragActive] = useState(false);
   const [dropStatus, setDropStatus] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    readonly flow: ActiveContextFlow;
+    readonly key: string;
+  } | null>(null);
   const dragDepth = useRef(0);
   const flowInstance = useRef<ReactFlowInstance<WaterLilyFlowNode> | null>(
     null,
@@ -59,20 +76,71 @@ export function GraphCanvas({ activeFlow = null, graph }: GraphCanvasProps) {
   const selectNode = useWaterLilyStore((state) => state.selectNode);
   const setPosition = useWaterLilyStore((state) => state.setPosition);
   const setPositions = useWaterLilyStore((state) => state.setPositions);
+  const previewKey =
+    selectedNodeIds.length === 0
+      ? null
+      : JSON.stringify([graph.updatedAt, selectedNodeIds, contextSelections]);
+  useEffect(() => {
+    if (previewKey === null) return;
+    let current = true;
+    const heads = selectedNodeIds.map((nodeId, slot) => ({
+      label: graph.nodes[nodeId]?.title ?? `Context ${String(slot + 1)}`,
+      nodeId,
+      slot,
+    }));
+    void deriveActiveContextFlow(
+      graph,
+      heads,
+      contextSelections,
+      'preview',
+    ).then(
+      (flow) => {
+        if (current) setPreview({ flow, key: previewKey });
+      },
+      () => {
+        if (current) setPreview(null);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [contextSelections, graph, previewKey, selectedNodeIds]);
+  const visibleFlow =
+    activeFlow ?? (preview?.key === previewKey ? preview.flow : null);
+  const attachmentCompatibility = useMemo(
+    () => attachmentCompatibilityByNode(graph, model),
+    [graph, model],
+  );
+  const incompatibleAttachmentNodeIds = useMemo(
+    () =>
+      Object.entries(attachmentCompatibility)
+        .filter(([, compatibility]) => compatibility === 'unsupported')
+        .map(([nodeId]) => nodeId),
+    [attachmentCompatibility],
+  );
   const nodes = useMemo(
     () =>
       toFlowNodes(graph, {
-        activeFlow,
+        activeFlow: visibleFlow,
+        attachmentCompatibility,
         contextSelections,
         groups,
         positions,
         selectedNodeIds,
       }),
-    [activeFlow, contextSelections, graph, groups, positions, selectedNodeIds],
+    [
+      contextSelections,
+      attachmentCompatibility,
+      graph,
+      groups,
+      positions,
+      selectedNodeIds,
+      visibleFlow,
+    ],
   );
   const edges = useMemo(
-    () => toFlowEdges(graph, activeFlow),
-    [activeFlow, graph],
+    () => toFlowEdges(graph, visibleFlow, incompatibleAttachmentNodeIds),
+    [graph, incompatibleAttachmentNodeIds, visibleFlow],
   );
 
   const handleNodeClick: NodeMouseHandler<WaterLilyFlowNode> = (
@@ -159,10 +227,14 @@ export function GraphCanvas({ activeFlow = null, graph }: GraphCanvasProps) {
 
     try {
       const prepared = await prepareDroppedFiles(files);
+      const uploaded = await Promise.all(
+        prepared.map((file) => uploadAttachment(file.file)),
+      );
       const createdAt = new Date().toISOString();
       addFileContexts({
         createdAt,
         files: prepared.map((file, index) => ({
+          attachment: uploaded[index] as AttachmentDescriptor,
           blockId: createPortableId('block'),
           edgeId: targetNodeId === null ? null : createPortableId('edge'),
           file,
@@ -232,7 +304,7 @@ export function GraphCanvas({ activeFlow = null, graph }: GraphCanvasProps) {
       </ReactFlow>
       {dragActive ? (
         <div className="file-drop-overlay" role="status">
-          <strong>Connect text files to this context</strong>
+          <strong>Connect files to this context</strong>
           <span>
             {selectedNodeId === null
               ? 'Release to create standalone context nodes'

@@ -87,6 +87,13 @@ describe('WaterLily store', () => {
       createdAt: CREATED_AT,
       files: [
         {
+          attachment: {
+            id: 'attachment-file-a',
+            mediaType: 'text/markdown',
+            name: 'lecture.md',
+            sha256: 'a'.repeat(64),
+            size: 12,
+          },
           blockId: 'block-file-a',
           edgeId: 'edge-file-a',
           file: {
@@ -94,13 +101,22 @@ describe('WaterLily store', () => {
             mediaType: 'text/markdown',
             name: 'lecture.md',
             size: 12,
-            text: 'Lecture text',
+            file: new File(['Lecture text'], 'lecture.md', {
+              type: 'text/markdown',
+            }),
           },
           nodeId: 'node-file-a',
           position: { x: 90, y: 120 },
           revisionId: 'revision-file-a',
         },
         {
+          attachment: {
+            id: 'attachment-file-b',
+            mediaType: 'application/json',
+            name: 'facts.json',
+            sha256: 'b'.repeat(64),
+            size: 14,
+          },
           blockId: 'block-file-b',
           edgeId: 'edge-file-b',
           file: {
@@ -108,7 +124,9 @@ describe('WaterLily store', () => {
             mediaType: 'application/json',
             name: 'facts.json',
             size: 14,
-            text: '{"fact":true}',
+            file: new File(['{"fact":true}'], 'facts.json', {
+              type: 'application/json',
+            }),
           },
           nodeId: 'node-file-b',
           position: { x: 90, y: 300 },
@@ -127,10 +145,11 @@ describe('WaterLily store', () => {
     expect(state.graph.revisions['revision-file-a']).toMatchObject({
       blocks: [
         {
-          format: 'plain',
+          attachmentId: 'attachment-file-a',
           id: 'block-file-a',
-          text: 'Lecture text',
-          type: 'text',
+          mediaType: 'text/markdown',
+          name: 'lecture.md',
+          type: 'attachment',
         },
       ],
       metadata: {
@@ -168,22 +187,31 @@ describe('WaterLily store', () => {
         .map((item) => item.blocks[0]),
     ).toEqual([
       {
-        format: 'plain',
+        attachmentId: 'attachment-file-a',
         id: 'block-file-a',
-        text: 'Lecture text',
-        type: 'text',
+        mediaType: 'text/markdown',
+        name: 'lecture.md',
+        type: 'attachment',
       },
       {
-        format: 'plain',
+        attachmentId: 'attachment-file-b',
         id: 'block-file-b',
-        text: '{"fact":true}',
-        type: 'text',
+        mediaType: 'application/json',
+        name: 'facts.json',
+        type: 'attachment',
       },
     ]);
   });
 
   it('creates standalone file context and rejects invalid batches atomically', () => {
     const standalone = {
+      attachment: {
+        id: 'attachment-standalone-file',
+        mediaType: 'text/plain',
+        name: 'standalone.txt',
+        sha256: 'c'.repeat(64),
+        size: 4,
+      },
       blockId: 'block-standalone-file',
       edgeId: null,
       file: {
@@ -191,7 +219,7 @@ describe('WaterLily store', () => {
         mediaType: 'text/plain',
         name: 'standalone.txt',
         size: 4,
-        text: 'text',
+        file: new File(['text'], 'standalone.txt', { type: 'text/plain' }),
       },
       nodeId: 'node-standalone-file',
       position: { x: 1, y: 2 },
@@ -245,6 +273,124 @@ describe('WaterLily store', () => {
         targetNodeId: 'node-answer',
       }),
     ).toThrow('requires an edge ID');
+  });
+
+  it('adds Python cells and execution outputs as notebook context', () => {
+    useWaterLilyStore.getState().addCodeCell({
+      blockId: 'block-code',
+      createdAt: CREATED_AT,
+      edgeId: 'edge-code',
+      nodeId: 'node-code',
+      parentNodeId: 'node-answer',
+      revisionId: 'revision-code',
+      source: 'value = 40\nprint(value + 2)',
+      title: 'Calculate answer',
+    });
+    let state = useWaterLilyStore.getState();
+    expect(state.graph.nodes['node-code']).toMatchObject({
+      kind: 'code',
+      title: 'Calculate answer',
+    });
+    expect(state.graph.revisions['revision-code']).toMatchObject({
+      blocks: [{ text: 'value = 40\nprint(value + 2)' }],
+      metadata: { code: { language: 'python' } },
+    });
+    expect(state.graph.edges['edge-code']).toMatchObject({
+      label: 'notebook state',
+      sourceNodeId: 'node-answer',
+      targetNodeId: 'node-code',
+    });
+
+    useWaterLilyStore.getState().addExecutionResult({
+      blockId: 'block-output',
+      codeNodeId: 'node-code',
+      createdAt: '2026-08-05T14:00:01.000Z',
+      durationMilliseconds: 8,
+      edgeId: 'edge-output',
+      exitCode: 0,
+      nodeId: 'node-output',
+      output: '42',
+      revisionId: 'revision-output',
+      timedOut: false,
+      truncated: false,
+    });
+    state = useWaterLilyStore.getState();
+    expect(state.graph.nodes['node-output']).toMatchObject({
+      kind: 'execution',
+      title: 'Python output',
+    });
+    expect(state.graph.revisions['revision-output']?.metadata).toEqual({
+      execution: {
+        durationMilliseconds: 8,
+        exitCode: 0,
+        language: 'python',
+        timedOut: false,
+        truncated: false,
+      },
+    });
+    expect(state.graph.edges['edge-output']).toMatchObject({
+      label: 'execution output',
+      sourceNodeId: 'node-code',
+      targetNodeId: 'node-output',
+    });
+    expect(state.selectedNodeId).toBe('node-output');
+  });
+
+  it('supports root cells and rejects invalid notebook relationships', () => {
+    useWaterLilyStore.getState().addCodeCell({
+      blockId: 'block-root-code',
+      createdAt: CREATED_AT,
+      edgeId: null,
+      nodeId: 'node-root-code',
+      parentNodeId: null,
+      revisionId: 'revision-root-code',
+      source: 'print("root")',
+      title: null,
+    });
+    expect(
+      useWaterLilyStore.getState().graph.nodes['node-root-code'],
+    ).toMatchObject({
+      title: 'Python cell',
+    });
+    expect(() =>
+      useWaterLilyStore.getState().addCodeCell({
+        blockId: 'block-missing-parent',
+        createdAt: CREATED_AT,
+        edgeId: 'edge-missing-parent',
+        nodeId: 'node-missing-parent',
+        parentNodeId: 'missing',
+        revisionId: 'revision-missing-parent',
+        source: 'x = 1',
+        title: null,
+      }),
+    ).toThrow('parent does not exist');
+    expect(() =>
+      useWaterLilyStore.getState().addCodeCell({
+        blockId: 'block-no-edge',
+        createdAt: CREATED_AT,
+        edgeId: null,
+        nodeId: 'node-no-edge',
+        parentNodeId: 'node-answer',
+        revisionId: 'revision-no-edge',
+        source: 'x = 1',
+        title: null,
+      }),
+    ).toThrow('requires an edge ID');
+    expect(() =>
+      useWaterLilyStore.getState().addExecutionResult({
+        blockId: 'block-bad-output',
+        codeNodeId: 'node-answer',
+        createdAt: CREATED_AT,
+        durationMilliseconds: 1,
+        edgeId: 'edge-bad-output',
+        exitCode: 1,
+        nodeId: 'node-bad-output',
+        output: 'bad',
+        revisionId: 'revision-bad-output',
+        timedOut: false,
+        truncated: false,
+      }),
+    ).toThrow('require a code cell');
   });
 
   it('merges ordered heads and selects the new merge node', () => {

@@ -1,4 +1,7 @@
-import type { WorkspaceSnapshot } from '@waterlily/api-contract';
+import type {
+  AttachmentDescriptor,
+  WorkspaceSnapshot,
+} from '@waterlily/api-contract';
 import type { ContextSelection } from '@waterlily/context-engine';
 import {
   connectContext,
@@ -28,6 +31,7 @@ import { sampleGraph } from '../sampleGraph';
 export type ViewMode = 'canvas' | 'focus';
 
 export interface FileContextNodeInput {
+  readonly attachment: AttachmentDescriptor;
   readonly blockId: string;
   readonly edgeId: string | null;
   readonly file: PreparedDroppedFile;
@@ -42,6 +46,31 @@ export interface AddFileContextsInput {
   readonly targetNodeId: string | null;
 }
 
+export interface AddCodeCellInput {
+  readonly blockId: string;
+  readonly createdAt: string;
+  readonly edgeId: string | null;
+  readonly nodeId: string;
+  readonly parentNodeId: string | null;
+  readonly revisionId: string;
+  readonly source: string;
+  readonly title: string | null;
+}
+
+export interface AddExecutionResultInput {
+  readonly blockId: string;
+  readonly codeNodeId: string;
+  readonly createdAt: string;
+  readonly durationMilliseconds: number;
+  readonly edgeId: string;
+  readonly exitCode: number | null;
+  readonly nodeId: string;
+  readonly output: string;
+  readonly revisionId: string;
+  readonly timedOut: boolean;
+  readonly truncated: boolean;
+}
+
 interface WaterLilyState {
   readonly contextSelections: Readonly<Record<string, ContextSelection>>;
   readonly graph: GraphSnapshot;
@@ -50,6 +79,8 @@ interface WaterLilyState {
   readonly selectedNodeId: string | null;
   readonly selectedNodeIds: readonly string[];
   readonly viewMode: ViewMode;
+  readonly addCodeCell: (input: AddCodeCellInput) => void;
+  readonly addExecutionResult: (input: AddExecutionResultInput) => void;
   readonly addFileContexts: (input: AddFileContextsInput) => void;
   readonly addGroup: (group: GraphViewGroup) => void;
   readonly branch: (input: Omit<BranchInput, 'graph'>) => void;
@@ -86,6 +117,91 @@ function initialState() {
 
 export const useWaterLilyStore = create<WaterLilyState>()((set) => ({
   ...initialState(),
+  addCodeCell: (input) => {
+    set((state) => {
+      if (
+        input.parentNodeId !== null &&
+        state.graph.nodes[input.parentNodeId] === undefined
+      )
+        throw new TypeError('The code cell parent does not exist');
+      let graph = createNode(state.graph, {
+        blocks: [
+          {
+            format: 'plain',
+            id: input.blockId,
+            text: input.source,
+            type: 'text',
+          },
+        ],
+        createdAt: input.createdAt,
+        kind: 'code',
+        metadata: { code: { language: 'python' } },
+        nodeId: input.nodeId,
+        revisionId: input.revisionId,
+        title: input.title ?? 'Python cell',
+      });
+      if (input.parentNodeId !== null) {
+        if (input.edgeId === null)
+          throw new TypeError('Connected code cell requires an edge ID');
+        graph = connectContext(graph, {
+          createdAt: input.createdAt,
+          edgeId: input.edgeId,
+          label: 'notebook state',
+          slot: 0,
+          sourceNodeId: input.parentNodeId,
+          targetNodeId: input.nodeId,
+        });
+      }
+      return {
+        graph,
+        selectedNodeId: input.nodeId,
+        selectedNodeIds: [input.nodeId],
+      };
+    });
+  },
+  addExecutionResult: (input) => {
+    set((state) => {
+      if (state.graph.nodes[input.codeNodeId]?.kind !== 'code')
+        throw new TypeError('Execution results require a code cell');
+      let graph = createNode(state.graph, {
+        blocks: [
+          {
+            format: 'plain',
+            id: input.blockId,
+            text: input.output,
+            type: 'text',
+          },
+        ],
+        createdAt: input.createdAt,
+        kind: 'execution',
+        metadata: {
+          execution: {
+            durationMilliseconds: input.durationMilliseconds,
+            exitCode: input.exitCode,
+            language: 'python',
+            timedOut: input.timedOut,
+            truncated: input.truncated,
+          },
+        },
+        nodeId: input.nodeId,
+        revisionId: input.revisionId,
+        title: input.exitCode === 0 ? 'Python output' : 'Python error',
+      });
+      graph = connectContext(graph, {
+        createdAt: input.createdAt,
+        edgeId: input.edgeId,
+        label: 'execution output',
+        slot: 0,
+        sourceNodeId: input.codeNodeId,
+        targetNodeId: input.nodeId,
+      });
+      return {
+        graph,
+        selectedNodeId: input.nodeId,
+        selectedNodeIds: [input.nodeId],
+      };
+    });
+  },
   addFileContexts: (input) => {
     set((state) => {
       if (input.files.length === 0)
@@ -119,10 +235,11 @@ export const useWaterLilyStore = create<WaterLilyState>()((set) => ({
         graph = createNode(graph, {
           blocks: [
             {
-              format: 'plain',
+              attachmentId: item.attachment.id,
               id: item.blockId,
-              text: item.file.text,
-              type: 'text',
+              mediaType: item.attachment.mediaType,
+              name: item.attachment.name,
+              type: 'attachment',
             },
           ],
           createdAt: input.createdAt,
@@ -133,6 +250,7 @@ export const useWaterLilyStore = create<WaterLilyState>()((set) => ({
               mediaType: item.file.mediaType,
               name: item.file.name,
               size: item.file.size,
+              sha256: item.attachment.sha256,
               source: 'drop',
             },
           },

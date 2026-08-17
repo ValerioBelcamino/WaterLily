@@ -13,6 +13,8 @@ import {
 } from '@waterlily/context-engine';
 import { MarkerType, type Edge, type Node } from '@xyflow/react';
 
+import type { AttachmentCompatibility } from '../files/compatibility';
+
 export interface CanvasPosition {
   readonly x: number;
   readonly y: number;
@@ -22,13 +24,16 @@ export type CanvasPositions = Readonly<Record<string, CanvasPosition>>;
 
 export interface ActiveContextFlow {
   readonly edgeIds: readonly string[];
+  readonly mode: 'preview' | 'running';
   readonly nodeIds: readonly string[];
 }
 
 export type ContextFlowState = 'active' | 'idle' | 'inactive';
 
 export interface ConversationNodeData extends Record<string, unknown> {
+  readonly attachmentCompatibility: AttachmentCompatibility | null;
   readonly contextMode: ContextSelection['mode'];
+  readonly flowMode: ActiveContextFlow['mode'] | null;
   readonly flowState: ContextFlowState;
   readonly kind: string;
   readonly preview: string;
@@ -50,6 +55,9 @@ export type WaterLilyFlowNode = ConversationFlowNode | GroupFlowNode;
 
 export interface FlowProjectionOptions {
   readonly activeFlow?: ActiveContextFlow | null;
+  readonly attachmentCompatibility?: Readonly<
+    Record<string, AttachmentCompatibility>
+  >;
   readonly contextSelections?: Readonly<Record<string, ContextSelection>>;
   readonly groups?: readonly GraphViewGroup[];
   readonly positions?: GraphViewState['positions'];
@@ -182,6 +190,7 @@ export async function deriveActiveContextFlow(
   graph: GraphSnapshot,
   heads: readonly ContextHead[],
   contextSelections: Readonly<Record<string, ContextSelection>> = {},
+  mode: ActiveContextFlow['mode'] = 'preview',
 ): Promise<ActiveContextFlow> {
   const compiled = await compileContext({
     graph,
@@ -208,7 +217,7 @@ export async function deriveActiveContextFlow(
     )
     .map((edge) => edge.id)
     .sort((left, right) => left.localeCompare(right));
-  return { edgeIds, nodeIds };
+  return { edgeIds, mode, nodeIds };
 }
 
 export function toFlowNodes(
@@ -295,7 +304,9 @@ export function toFlowNodes(
           };
     return {
       data: {
+        attachmentCompatibility: options.attachmentCompatibility?.[id] ?? null,
         contextMode: options.contextSelections?.[id]?.mode ?? 'full',
+        flowMode: options.activeFlow?.mode ?? null,
         flowState: hasActiveFlow
           ? activeNodeIds.has(id)
             ? 'active'
@@ -321,8 +332,10 @@ export function toFlowNodes(
 export function toFlowEdges(
   graph: GraphSnapshot,
   activeFlow: ActiveContextFlow | null = null,
+  incompatibleAttachmentNodeIds: readonly string[] = [],
 ): Edge[] {
   const activeEdgeIds = new Set(activeFlow?.edgeIds ?? []);
+  const incompatibleNodes = new Set(incompatibleAttachmentNodeIds);
   return Object.values(graph.edges)
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((edge) => {
@@ -333,10 +346,19 @@ export function toFlowEdges(
           : activeEdgeIds.has(edge.id)
             ? 'active'
             : 'inactive';
+      const incompatibleAttachment =
+        edge.kind === 'context' &&
+        (incompatibleNodes.has(edge.sourceNodeId) ||
+          incompatibleNodes.has(edge.targetNodeId));
       return {
         animated: flowState === 'active',
-        className: `context-flow-edge context-flow-edge--${flowState}`,
-        data: { flowState, kind: edge.kind },
+        className: `context-flow-edge context-flow-edge--${flowState}${flowState === 'active' && activeFlow !== null ? ` context-flow-edge--${activeFlow.mode}` : ''}${incompatibleAttachment ? ' context-flow-edge--incompatible' : ''}`,
+        data: {
+          incompatibleAttachment,
+          flowMode: activeFlow?.mode ?? null,
+          flowState,
+          kind: edge.kind,
+        },
         id: edge.id,
         label: edgeLabel(edge),
         markerEnd: {

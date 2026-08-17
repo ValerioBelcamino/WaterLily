@@ -1,5 +1,13 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Bot, FileText, Lightbulb, UserRound, Wrench } from 'lucide-react';
+import {
+  Bot,
+  FileOutput,
+  FileText,
+  Lightbulb,
+  SquareTerminal,
+  UserRound,
+  Wrench,
+} from 'lucide-react';
 
 import type { ConversationFlowNode } from './graphViewModel';
 
@@ -10,17 +18,26 @@ const roleIcons = {
   user: UserRound,
 } as const;
 
+const kindIcons = {
+  code: SquareTerminal,
+  execution: FileOutput,
+} as const;
+
 export function ConversationNode({
   data,
   selected,
 }: NodeProps<ConversationFlowNode>) {
-  const Icon = data.role === null ? FileText : roleIcons[data.role];
+  const KindIcon = (kindIcons as Partial<Record<string, typeof FileText>>)[
+    data.kind
+  ];
+  const Icon =
+    data.role === null ? (KindIcon ?? FileText) : roleIcons[data.role];
   const category = data.role ?? data.kind;
 
   return (
     <article
       aria-label={`${data.title}, ${category}${data.flowState === 'active' ? ', active model context' : ''}`}
-      className={`conversation-node conversation-node--${category}${selected ? ' is-selected' : ''}${data.contextMode === 'excluded' ? ' is-context-excluded' : ''} is-flow-${data.flowState}`}
+      className={`conversation-node conversation-node--${category}${selected ? ' is-selected' : ''}${data.contextMode === 'excluded' ? ' is-context-excluded' : ''}${data.attachmentCompatibility === 'unsupported' ? ' is-attachment-incompatible' : ''} is-flow-${data.flowState}${data.flowState === 'active' && data.flowMode !== null ? ` is-flow-${data.flowMode}` : ''}`}
       data-flow-state={data.flowState}
     >
       <Handle
@@ -45,11 +62,15 @@ export function ConversationNode({
       <p>{data.preview}</p>
       <footer>
         <span>
-          {data.flowState === 'active'
-            ? 'active context'
-            : data.contextMode === 'excluded'
-              ? 'context off'
-              : data.kind}
+          {data.attachmentCompatibility === 'unsupported'
+            ? 'unsupported file'
+            : data.flowState === 'active'
+              ? data.flowMode === 'running'
+                ? 'running context'
+                : 'selected context'
+              : data.contextMode === 'excluded'
+                ? 'context off'
+                : data.kind}
         </span>
         <span aria-hidden="true">↗</span>
       </footer>

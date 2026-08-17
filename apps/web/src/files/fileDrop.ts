@@ -1,25 +1,29 @@
 export const MAX_DROPPED_FILES = 8;
-export const MAX_DROPPED_FILE_BYTES = 2 * 1024 * 1024;
+export const MAX_DROPPED_FILE_BYTES = 10 * 1024 * 1024;
 
-const TEXT_MEDIA_TYPES = new Set([
-  'application/graphql',
-  'application/javascript',
+const SUPPORTED_MEDIA_TYPES = new Set([
   'application/json',
-  'application/ld+json',
-  'application/sql',
-  'application/toml',
-  'application/typescript',
-  'application/x-httpd-php',
-  'application/x-javascript',
-  'application/x-ndjson',
-  'application/x-sh',
-  'application/x-yaml',
+  'application/msword',
+  'application/pdf',
+  'application/rtf',
+  'application/vnd.ms-excel',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/xml',
-  'application/yaml',
-  'image/svg+xml',
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'text/csv',
+  'text/html',
+  'text/markdown',
+  'text/plain',
 ]);
 
-const TEXT_EXTENSIONS = new Set([
+const SUPPORTED_EXTENSIONS = new Set([
   'c',
   'cc',
   'conf',
@@ -27,67 +31,68 @@ const TEXT_EXTENSIONS = new Set([
   'cs',
   'css',
   'csv',
+  'doc',
+  'docx',
   'go',
-  'graphql',
   'h',
   'hpp',
   'html',
-  'ini',
   'java',
   'js',
   'json',
-  'jsonl',
   'jsx',
   'kt',
   'log',
   'lua',
   'md',
   'mjs',
+  'odt',
+  'pdf',
   'php',
-  'properties',
+  'ppt',
+  'pptx',
   'py',
   'rb',
   'rs',
-  'rst',
+  'rtf',
   'scss',
   'sh',
   'sql',
-  'svg',
   'tex',
   'toml',
   'ts',
   'tsx',
   'txt',
   'xml',
+  'xls',
+  'xlsx',
   'yaml',
   'yml',
 ]);
 
 export type DroppedFileErrorCode =
-  | 'BINARY_FILE'
   | 'EMPTY_FILE'
   | 'FILE_TOO_LARGE'
   | 'NO_FILES'
-  | 'READ_FAILED'
   | 'TOO_MANY_FILES'
   | 'UNSUPPORTED_TYPE';
 
 export class DroppedFileError extends Error {
   readonly code: DroppedFileErrorCode;
 
-  constructor(code: DroppedFileErrorCode, message: string, cause?: unknown) {
-    super(message, { cause });
+  constructor(code: DroppedFileErrorCode, message: string) {
+    super(message);
     this.name = 'DroppedFileError';
     this.code = code;
   }
 }
 
 export interface PreparedDroppedFile {
+  readonly file: File;
   readonly lastModified: number;
   readonly mediaType: string;
   readonly name: string;
   readonly size: number;
-  readonly text: string;
 }
 
 function extension(name: string): string {
@@ -95,73 +100,44 @@ function extension(name: string): string {
   return separator === -1 ? '' : name.slice(separator + 1).toLowerCase();
 }
 
-function isSupportedTextFile(file: File): boolean {
-  const mediaType = file.type.toLowerCase().split(';', 1)[0] as string;
-  return (
-    mediaType.startsWith('text/') ||
-    TEXT_MEDIA_TYPES.has(mediaType) ||
-    (mediaType.length === 0 && TEXT_EXTENSIONS.has(extension(file.name)))
-  );
-}
-
-async function prepareFile(file: File): Promise<PreparedDroppedFile> {
-  if (file.size > MAX_DROPPED_FILE_BYTES) {
-    throw new DroppedFileError(
-      'FILE_TOO_LARGE',
-      `${file.name} is larger than the 2 MiB text-file limit.`,
-    );
-  }
-  if (!isSupportedTextFile(file)) {
-    throw new DroppedFileError(
-      'UNSUPPORTED_TYPE',
-      `${file.name} is not a supported text file.`,
-    );
-  }
-
-  let text: string;
-  try {
-    text = await file.text();
-  } catch (cause) {
-    throw new DroppedFileError(
-      'READ_FAILED',
-      `${file.name} could not be read.`,
-      cause,
-    );
-  }
-  const normalized = text.startsWith('\uFEFF') ? text.slice(1) : text;
-  if (normalized.includes('\0')) {
-    throw new DroppedFileError(
-      'BINARY_FILE',
-      `${file.name} appears to contain binary data.`,
-    );
-  }
-  if (normalized.trim().length === 0) {
+function prepareFile(file: File): PreparedDroppedFile {
+  if (file.size === 0)
     throw new DroppedFileError(
       'EMPTY_FILE',
-      `${file.name} does not contain readable text.`,
+      `${file.name} is empty and cannot be attached.`,
     );
-  }
-
+  if (file.size > MAX_DROPPED_FILE_BYTES)
+    throw new DroppedFileError(
+      'FILE_TOO_LARGE',
+      `${file.name} is larger than the 10 MiB attachment limit.`,
+    );
+  const mediaType = file.type.toLowerCase().split(';', 1)[0] as string;
+  if (
+    !SUPPORTED_MEDIA_TYPES.has(mediaType) &&
+    !SUPPORTED_EXTENSIONS.has(extension(file.name))
+  )
+    throw new DroppedFileError(
+      'UNSUPPORTED_TYPE',
+      `${file.name} is not a supported native attachment type.`,
+    );
   return {
+    file,
     lastModified: file.lastModified,
-    mediaType: file.type || 'text/plain',
+    mediaType: mediaType || 'application/octet-stream',
     name: file.name,
     size: file.size,
-    text: normalized,
   };
 }
 
 export async function prepareDroppedFiles(
   files: readonly File[],
 ): Promise<readonly PreparedDroppedFile[]> {
-  if (files.length === 0) {
-    throw new DroppedFileError('NO_FILES', 'Drop one or more text files.');
-  }
-  if (files.length > MAX_DROPPED_FILES) {
+  if (files.length === 0)
+    throw new DroppedFileError('NO_FILES', 'Drop one or more files.');
+  if (files.length > MAX_DROPPED_FILES)
     throw new DroppedFileError(
       'TOO_MANY_FILES',
       `Drop no more than ${String(MAX_DROPPED_FILES)} files at once.`,
     );
-  }
-  return Promise.all(files.map((file) => prepareFile(file)));
+  return Promise.resolve(files.map(prepareFile));
 }

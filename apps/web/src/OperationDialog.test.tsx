@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -96,13 +96,42 @@ describe('OperationDialog', () => {
 
     expect(screen.getByText('3 selected nodes')).toBeVisible();
     await user.type(screen.getByLabelText('Group name'), 'Exam review');
+    fireEvent.change(screen.getByLabelText('Group color'), {
+      target: { value: '#547a68' },
+    });
     await user.click(
       screen.getByRole('button', { name: 'Group selected nodes' }),
     );
     expect(onSubmit).toHaveBeenCalledWith({
-      color: '#7669a8',
+      color: '#547a68',
       kind: 'group',
       title: 'Exam review',
+    });
+  });
+
+  it('submits an exact Python cell and validates blank code', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <OperationDialog
+        kind="code"
+        onClose={() => undefined}
+        onSubmit={onSubmit}
+        selectedCount={1}
+        selectedTitle="Current branch"
+      />,
+    );
+    expect(screen.getByText(/not a security sandbox/)).toBeVisible();
+    await user.type(screen.getByLabelText(/Cell title/), ' Calculation ');
+    await user.type(
+      screen.getByLabelText('Python code'),
+      'value = 40{enter}print(value + 2)',
+    );
+    await user.click(screen.getByRole('button', { name: 'Add Python cell' }));
+    expect(onSubmit).toHaveBeenCalledWith({
+      kind: 'code',
+      source: 'value = 40\nprint(value + 2)',
+      title: 'Calculation',
     });
   });
 
@@ -133,6 +162,29 @@ describe('OperationDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Validate & import' }));
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Unsupported graph version',
+    );
+  });
+
+  it('reports browser file read failures during import', async () => {
+    const user = userEvent.setup();
+    render(
+      <OperationDialog
+        kind="import"
+        onClose={() => undefined}
+        onSubmit={() => undefined}
+        selectedCount={0}
+        selectedTitle="No selection"
+      />,
+    );
+    const file = new File(['private'], 'graph.json', {
+      type: 'application/json',
+    });
+    Object.defineProperty(file, 'text', {
+      value: () => Promise.reject(new Error('browser detail')),
+    });
+    await user.upload(screen.getByLabelText(/Choose JSON file/), file);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'selected file could not be read',
     );
   });
 

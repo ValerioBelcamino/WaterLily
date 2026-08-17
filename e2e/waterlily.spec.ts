@@ -66,13 +66,23 @@ test('generates from a graph head and persists graph and view changes', async ({
     name: /evidence\.txt/,
   });
   const noteNode = page.getByRole('article', { name: /Dam analogy/ });
+  await expect(evidenceNode).toContainText('unsupported file');
   await page.getByRole('button', { name: /Generate/ }).click();
-  await expect(synthesisNode).toHaveAttribute('data-flow-state', 'active');
+  await expect(page.getByRole('alert')).toContainText(
+    'cannot receive evidence.txt',
+  );
+
+  await evidenceNode.click();
+  await page.getByRole('button', { name: 'Included' }).click();
+  await expect(page.getByRole('button', { name: 'Excluded' })).toBeVisible();
+  await synthesisNode.click();
+  await page.getByRole('button', { name: /Generate/ }).click();
+  await expect(synthesisNode).toHaveClass(/is-flow-running/u);
   await expect(synthesisNode).toHaveCSS(
     'animation-name',
     'active-context-node-pulse',
   );
-  await expect(evidenceNode).toHaveAttribute('data-flow-state', 'active');
+  await expect(evidenceNode).toHaveAttribute('data-flow-state', 'inactive');
   await expect(noteNode).toHaveAttribute('data-flow-state', 'inactive');
   await expect(noteNode).toHaveCSS('opacity', '0.32');
   await expect(page.locator('.context-flow-edge--active')).not.toHaveCount(0);
@@ -81,8 +91,10 @@ test('generates from a graph head and persists graph and view changes', async ({
     inspector.getByText('The end-to-end response is committed.'),
   ).toBeVisible();
   await expect(inspector.getByText('Public reasoning')).toBeVisible();
-  await expect(synthesisNode).toHaveAttribute('data-flow-state', 'idle');
-  await expect(page.locator('.context-flow-edge--active')).toHaveCount(0);
+  await expect(page.locator('.context-flow-edge--running')).toHaveCount(0);
+  await expect(
+    page.getByText('The graph changed while the response was being committed'),
+  ).toHaveCount(0);
   await expect(
     page.getByRole('button', {
       name: /Oxidative phosphorylation 9 nodes/,

@@ -22,6 +22,9 @@ function serviceState(
   return {
     activeFlow: null,
     cancel: vi.fn(),
+    createProviderProfile: vi.fn(() => Promise.resolve()),
+    executePython: vi.fn(() => Promise.resolve()),
+    execution: { error: null, result: null, status: 'idle' },
     generate: vi.fn(() => Promise.resolve()),
     generation: {
       error: null,
@@ -31,11 +34,42 @@ function serviceState(
       text: '',
     },
     providers: [],
+    removeProviderProfile: vi.fn(() => Promise.resolve()),
+    selectedModelId: null,
     selectedProviderId: null,
     serviceError: null,
+    setSelectedModelId: vi.fn(),
     setSelectedProviderId: vi.fn(),
     status: 'disabled',
+    uploadAttachment: vi.fn(() => Promise.reject(new Error('Unavailable'))),
     ...overrides,
+  };
+}
+
+function provider(
+  id: string,
+  name: string,
+  modelId: string,
+): WaterLilyServiceState['providers'][number] {
+  return {
+    available: true,
+    defaultModel: modelId,
+    id,
+    models: [
+      {
+        capabilities: {
+          inputExtensions: [],
+          inputMimeTypes: [],
+          maxFileBytes: null,
+          nativeFiles: false,
+        },
+        id: modelId,
+        name: modelId,
+      },
+    ],
+    name,
+    providerType: 'openai-compatible',
+    source: 'environment',
   };
 }
 
@@ -204,25 +238,36 @@ describe('App', () => {
   it('shows online providers and delegates provider selection', async () => {
     const user = userEvent.setup();
     const generate = vi.fn(() => Promise.resolve());
+    const setSelectedModelId = vi.fn();
     const setSelectedProviderId = vi.fn();
+    const deepseek = provider('deepseek', 'DeepSeek', 'deepseek-v4-flash');
+    const deepseekCapabilities = deepseek.models[0]?.capabilities;
+    if (deepseekCapabilities === undefined)
+      throw new Error('Provider fixture requires a model');
     vi.mocked(useWaterLilyService).mockReturnValue(
       serviceState({
         providers: [
           {
-            available: true,
-            defaultModel: 'deepseek-v4-flash',
-            id: 'deepseek',
-            name: 'DeepSeek',
+            ...deepseek,
+            models: [
+              ...deepseek.models,
+              {
+                capabilities: deepseekCapabilities,
+                id: 'deepseek-reasoner',
+                name: 'DeepSeek Reasoner',
+              },
+            ],
           },
+          provider('local', 'Local model', 'local-model'),
           {
-            available: true,
-            defaultModel: 'local-model',
-            id: 'local',
-            name: 'Local model',
+            ...provider('offline', 'Offline provider', 'offline-model'),
+            available: false,
           },
         ],
         generate,
+        selectedModelId: 'deepseek-v4-flash',
         selectedProviderId: 'deepseek',
+        setSelectedModelId,
         setSelectedProviderId,
         status: 'online',
       }),
@@ -232,9 +277,17 @@ describe('App', () => {
     expect(screen.getByText('online')).toBeVisible();
     expect(screen.getByRole('button', { name: /Generate/ })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: /Generate/ }));
-    expect(generate).toHaveBeenCalledWith('node-synthesis');
+    expect(generate).toHaveBeenCalledWith(['node-synthesis']);
     await user.selectOptions(screen.getByLabelText('Model provider'), 'local');
     expect(setSelectedProviderId).toHaveBeenCalledWith('local');
+    await user.selectOptions(
+      screen.getByLabelText('Model'),
+      'deepseek-reasoner',
+    );
+    expect(setSelectedModelId).toHaveBeenCalledWith('deepseek-reasoner');
+    expect(
+      screen.getByRole('option', { name: /Offline provider/ }),
+    ).toBeDisabled();
   });
 
   it('surfaces service errors and delegates active-generation cancellation', async () => {
@@ -250,14 +303,8 @@ describe('App', () => {
           status: 'streaming',
           text: 'Partial answer',
         },
-        providers: [
-          {
-            available: true,
-            defaultModel: 'local-model',
-            id: 'local',
-            name: 'Local model',
-          },
-        ],
+        providers: [provider('local', 'Local model', 'local-model')],
+        selectedModelId: 'local-model',
         selectedProviderId: 'local',
         status: 'online',
       }),
@@ -277,5 +324,57 @@ describe('App', () => {
     );
     rendered.rerender(<App />);
     expect(screen.getByText('Local service unavailable')).toBeVisible();
+  });
+
+  it('adds a Python cell to the selected flow and delegates its execution', async () => {
+    const user = userEvent.setup();
+    const executePython = vi.fn(() => Promise.resolve());
+    vi.mocked(useWaterLilyService).mockReturnValue(
+      serviceState({ executePython, status: 'online' }),
+    );
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Code' }));
+    await user.type(screen.getByLabelText(/Cell title/), 'ATP calculation');
+    await user.type(screen.getByLabelText('Python code'), 'print(6 * 7)');
+    await user.click(screen.getByRole('button', { name: 'Add Python cell' }));
+
+    const state = useWaterLilyStore.getState();
+    const codeNodeId = state.selectedNodeId;
+    expect(state.graph.nodes[codeNodeId ?? '']).toMatchObject({
+      kind: 'code',
+      title: 'ATP calculation',
+    });
+    expect(
+      screen.getByText('Python cell added to the selected flow.'),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Run' }));
+    expect(executePython).toHaveBeenCalledWith(codeNodeId);
+  });
+
+  it('opens local credential management and delegates profile creation', async () => {
+    const user = userEvent.setup();
+    const createProviderProfile = vi.fn(() => Promise.resolve());
+    vi.mocked(useWaterLilyService).mockReturnValue(
+      serviceState({ createProviderProfile, status: 'online' }),
+    );
+    render(<App />);
+
+    await user.click(
+      screen.getByRole('button', { name: 'Manage provider profiles' }),
+    );
+    expect(screen.getByRole('dialog')).toHaveAccessibleName(
+      'Provider profiles',
+    );
+    await user.type(screen.getByLabelText('Profile name'), 'Personal');
+    await user.type(screen.getByLabelText(/API key/), 'secret');
+    await user.click(screen.getByRole('button', { name: 'Add profile' }));
+    expect(createProviderProfile).toHaveBeenCalledWith({
+      apiKey: 'secret',
+      baseUrl: null,
+      label: 'Personal',
+      models: [],
+      providerType: 'openai',
+    });
   });
 });

@@ -1,12 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { GraphNode } from '@waterlily/domain';
+import { createNode, type GraphNode } from '@waterlily/domain';
 
 import { sampleGraph } from './sampleGraph';
 import { Inspector } from './Inspector';
 
 const emptyHandlers = {
+  canExecute: true,
   canGenerate: true,
   contextSelection: { mode: 'full' } as const,
   generation: {
@@ -16,10 +17,13 @@ const emptyHandlers = {
     status: 'idle',
     text: '',
   } as const,
+  execution: { error: null, result: null, status: 'idle' } as const,
   onBranch: () => undefined,
   onCancel: () => undefined,
+  onCreateCode: () => undefined,
   onContextSelectionChange: () => undefined,
   onGenerate: () => undefined,
+  onRunCode: () => undefined,
   onMerge: () => undefined,
   onSplit: () => undefined,
   selectedCount: 1,
@@ -63,15 +67,19 @@ describe('Inspector', () => {
     const onSplit = vi.fn();
     render(
       <Inspector
+        canExecute
         canGenerate
         contextSelection={{ mode: 'excluded' }}
         generation={emptyHandlers.generation}
+        execution={emptyHandlers.execution}
         graph={sampleGraph}
         nodeId="node-answer"
         onBranch={onBranch}
         onCancel={() => undefined}
+        onCreateCode={() => undefined}
         onContextSelectionChange={onContextSelectionChange}
         onGenerate={onGenerate}
+        onRunCode={() => undefined}
         onMerge={onMerge}
         onSplit={onSplit}
         selectedCount={2}
@@ -167,5 +175,50 @@ describe('Inspector', () => {
 
     expect(screen.getByText('analogy, review')).toBeVisible();
     expect(screen.getByText('missing', { selector: 'dd' })).toBeVisible();
+  });
+
+  it('runs Python cells, creates follow-up cells, and exposes execution errors', async () => {
+    const user = userEvent.setup();
+    const onCreateCode = vi.fn();
+    const onRunCode = vi.fn();
+    const graph = createNode(sampleGraph, {
+      blocks: [
+        {
+          format: 'plain',
+          id: 'block-code-test',
+          text: 'print(42)',
+          type: 'text',
+        },
+      ],
+      createdAt: '2026-08-17T10:00:00.000Z',
+      kind: 'code',
+      nodeId: 'node-code-test',
+      revisionId: 'revision-code-test',
+      title: 'Answer cell',
+    });
+    render(
+      <Inspector
+        {...emptyHandlers}
+        execution={{
+          error: 'Interpreter unavailable',
+          result: null,
+          status: 'idle',
+        }}
+        graph={graph}
+        nodeId="node-code-test"
+        onCreateCode={onCreateCode}
+        onRunCode={onRunCode}
+      />,
+    );
+    expect(screen.getByText('print(42)')).toHaveClass(
+      'inspector__content--code',
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Interpreter unavailable',
+    );
+    await user.click(screen.getByRole('button', { name: 'Run' }));
+    await user.click(screen.getByRole('button', { name: 'Code' }));
+    expect(onRunCode).toHaveBeenCalledOnce();
+    expect(onCreateCode).toHaveBeenCalledOnce();
   });
 });

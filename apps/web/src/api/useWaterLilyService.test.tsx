@@ -21,7 +21,21 @@ const providers: readonly ProviderDescriptor[] = [
     available: true,
     defaultModel: 'deepseek-v4-flash',
     id: 'deepseek',
+    models: [
+      {
+        capabilities: {
+          inputExtensions: [],
+          inputMimeTypes: [],
+          maxFileBytes: null,
+          nativeFiles: false,
+        },
+        id: 'deepseek-v4-flash',
+        name: 'DeepSeek V4 Flash',
+      },
+    ],
     name: 'DeepSeek',
+    providerType: 'deepseek',
+    source: 'environment',
   },
 ];
 
@@ -42,12 +56,38 @@ function workspace(
 
 function createClient(overrides: Partial<ServiceClient> = {}): ServiceClient {
   return {
+    createProviderProfile: vi.fn<
+      NonNullable<ServiceClient['createProviderProfile']>
+    >(() => Promise.resolve(providers[0] as ProviderDescriptor)),
+    executePython: vi.fn<NonNullable<ServiceClient['executePython']>>(() =>
+      Promise.resolve({
+        durationMilliseconds: 4,
+        exitCode: 0,
+        stderr: '',
+        stdout: '42\n',
+        timedOut: false,
+        truncated: false,
+      }),
+    ),
     generate: vi.fn<ServiceClient['generate']>(() =>
       Promise.resolve(workspace()),
     ),
     health: vi.fn<ServiceClient['health']>(() => Promise.resolve(providers)),
     load: vi.fn<ServiceClient['load']>(() => Promise.resolve(workspace())),
+    removeProviderProfile: vi.fn<
+      NonNullable<ServiceClient['removeProviderProfile']>
+    >(() => Promise.resolve()),
     save: vi.fn<ServiceClient['save']>((snapshot) => Promise.resolve(snapshot)),
+    uploadAttachment: vi.fn<NonNullable<ServiceClient['uploadAttachment']>>(
+      (file) =>
+        Promise.resolve({
+          id: 'attachment-uploaded',
+          mediaType: file.type,
+          name: file.name,
+          sha256: 'a'.repeat(64),
+          size: file.size,
+        }),
+    ),
     ...overrides,
   };
 }
@@ -191,7 +231,7 @@ describe('useWaterLilyService', () => {
     await waitFor(() => expect(result.current.status).toBe('online'));
 
     await act(async () => {
-      await result.current.generate('node-synthesis');
+      await result.current.generate(['node-synthesis']);
     });
 
     expect(result.current.generation).toEqual({
@@ -227,7 +267,7 @@ describe('useWaterLilyService', () => {
       expect(unavailable.result.current.status).toBe('online'),
     );
     await act(async () => {
-      await unavailable.result.current.generate('node-synthesis');
+      await unavailable.result.current.generate(['node-synthesis']);
     });
     expect(unavailable.result.current.generation.error).toMatch(
       /configure a provider/iu,
@@ -248,7 +288,7 @@ describe('useWaterLilyService', () => {
     );
     await waitFor(() => expect(rejected.result.current.status).toBe('online'));
     await act(async () => {
-      await rejected.result.current.generate('node-synthesis');
+      await rejected.result.current.generate(['node-synthesis']);
     });
     expect(rejected.result.current.generation.error).toBe(
       'Provider request failed',
@@ -279,7 +319,7 @@ describe('useWaterLilyService', () => {
     );
     await waitFor(() => expect(active.result.current.status).toBe('online'));
     act(() => {
-      void active.result.current.generate('node-synthesis');
+      void active.result.current.generate(['node-synthesis']);
     });
     await waitFor(() =>
       expect(active.result.current.generation.status).toBe('streaming'),
@@ -301,6 +341,7 @@ describe('useWaterLilyService', () => {
         'node-synthesis',
         'node-system',
       ],
+      mode: 'running',
     });
     act(() => active.result.current.cancel());
     await waitFor(() =>
@@ -331,5 +372,399 @@ describe('useWaterLilyService', () => {
     );
     expect(disabled.result.current.status).toBe('disabled');
     expect(disabledClient.health).not.toHaveBeenCalled();
+  });
+
+  it('creates, selects, removes, and uploads through local provider profiles', async () => {
+    const stored: ProviderDescriptor = {
+      ...(providers[0] as ProviderDescriptor),
+      id: 'profile-stored',
+      name: 'Stored profile',
+      source: 'stored',
+    };
+    const health = vi
+      .fn<ServiceClient['health']>()
+      .mockResolvedValueOnce(providers)
+      .mockResolvedValueOnce([...providers, stored])
+      .mockResolvedValueOnce(providers);
+    const client = createClient({
+      createProviderProfile: vi.fn(() => Promise.resolve(stored)),
+      health,
+    });
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+
+    await act(async () => {
+      await result.current.createProviderProfile({
+        apiKey: 'secret',
+        baseUrl: null,
+        label: 'Stored profile',
+        models: [],
+        providerType: 'deepseek',
+      });
+    });
+    expect(result.current.selectedProviderId).toBe('profile-stored');
+    expect(result.current.selectedModelId).toBe('deepseek-v4-flash');
+    const file = new File(['note'], 'note.txt', { type: 'text/plain' });
+    await expect(result.current.uploadAttachment(file)).resolves.toMatchObject({
+      name: 'note.txt',
+    });
+    await act(async () => {
+      await result.current.removeProviderProfile('profile-stored');
+    });
+    expect(result.current.selectedProviderId).toBe('deepseek');
+
+    act(() => result.current.setSelectedModelId('another-model'));
+    expect(result.current.selectedModelId).toBe('another-model');
+    act(() => result.current.setSelectedProviderId('deepseek'));
+    expect(result.current.selectedModelId).toBe('deepseek-v4-flash');
+    act(() => result.current.setSelectedProviderId('missing'));
+    expect(result.current.selectedModelId).toBeNull();
+  });
+
+  it('clears provider selection when the selected stored profile has no fallback', async () => {
+    const stored: ProviderDescriptor = {
+      ...(providers[0] as ProviderDescriptor),
+      id: 'profile-only',
+      source: 'stored',
+    };
+    const client = createClient({
+      health: vi
+        .fn<NonNullable<ServiceClient['health']>>()
+        .mockResolvedValueOnce([stored])
+        .mockResolvedValueOnce([]),
+    });
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.selectedProviderId).toBe('profile-only'),
+    );
+    await act(async () => {
+      await result.current.removeProviderProfile('profile-only');
+    });
+    expect(result.current.selectedProviderId).toBeNull();
+    expect(result.current.selectedModelId).toBeNull();
+  });
+
+  it('replays included Python cells and records bounded output as a graph node', async () => {
+    useWaterLilyStore.getState().addCodeCell({
+      blockId: 'block-code-1',
+      createdAt: '2026-08-17T10:00:00.000Z',
+      edgeId: 'edge-code-1',
+      nodeId: 'node-code-1',
+      parentNodeId: 'node-answer',
+      revisionId: 'revision-code-1',
+      source: 'value = 40',
+      title: 'Setup',
+    });
+    useWaterLilyStore.getState().addCodeCell({
+      blockId: 'block-code-2',
+      createdAt: '2026-08-17T10:00:01.000Z',
+      edgeId: 'edge-code-2',
+      nodeId: 'node-code-2',
+      parentNodeId: 'node-code-1',
+      revisionId: 'revision-code-2',
+      source: 'print(value + 2)',
+      title: 'Calculate',
+    });
+    const executePython = vi.fn<NonNullable<ServiceClient['executePython']>>(
+      () =>
+        Promise.resolve({
+          durationMilliseconds: 8,
+          exitCode: 1,
+          stderr: 'warning\n',
+          stdout: '42\n',
+          timedOut: false,
+          truncated: true,
+        }),
+    );
+    const client = createClient({
+      executePython,
+      load: vi.fn(() => Promise.resolve(null)),
+    });
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+
+    await act(async () => {
+      await result.current.executePython('node-code-2');
+    });
+    expect(executePython).toHaveBeenCalledWith(
+      {
+        cells: [
+          { nodeId: 'node-code-1', source: 'value = 40' },
+          { nodeId: 'node-code-2', source: 'print(value + 2)' },
+        ],
+        graphId: sampleGraph.id,
+      },
+      expect.any(AbortSignal),
+    );
+    expect(result.current.execution).toMatchObject({
+      error: null,
+      result: { exitCode: 1, truncated: true },
+      status: 'idle',
+    });
+    const state = useWaterLilyStore.getState();
+    const output = state.graph.nodes[state.selectedNodeId ?? ''];
+    expect(output).toMatchObject({ kind: 'execution', title: 'Python error' });
+    expect(
+      state.graph.revisions[output?.currentRevisionId ?? '']?.blocks[0],
+    ).toMatchObject({
+      text: '42\n\n[stderr]\nwarning\n\n[output truncated at the local size limit]',
+    });
+  });
+
+  it('reports invalid, unavailable, failed, and canceled Python runs', async () => {
+    const { executePython: _executePython, ...unavailableClient } =
+      createClient();
+    void _executePython;
+    const unavailable = renderHook(() =>
+      useWaterLilyService({ client: unavailableClient, enabled: true }),
+    );
+    await waitFor(() =>
+      expect(unavailable.result.current.status).toBe('online'),
+    );
+    await act(async () => {
+      await unavailable.result.current.executePython('node-answer');
+    });
+    expect(unavailable.result.current.execution.error).toMatch(/unavailable/iu);
+    unavailable.unmount();
+
+    let rejectExecution: ((cause: unknown) => void) | undefined;
+    const executePython = vi.fn<NonNullable<ServiceClient['executePython']>>(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectExecution = reject;
+        }),
+    );
+    useWaterLilyStore.getState().addCodeCell({
+      blockId: 'block-code-cancel',
+      createdAt: '2026-08-17T10:00:00.000Z',
+      edgeId: 'edge-code-cancel',
+      nodeId: 'node-code-cancel',
+      parentNodeId: 'node-answer',
+      revisionId: 'revision-code-cancel',
+      source: 'import time\ntime.sleep(20)',
+      title: null,
+    });
+    const active = renderHook(() =>
+      useWaterLilyService({
+        client: createClient({
+          executePython,
+          load: vi.fn(() => Promise.resolve(null)),
+        }),
+        enabled: true,
+      }),
+    );
+    await waitFor(() => expect(active.result.current.status).toBe('online'));
+    act(() => {
+      void active.result.current.executePython('node-code-cancel');
+    });
+    await waitFor(() =>
+      expect(active.result.current.execution.status).toBe('running'),
+    );
+    await waitFor(() => expect(executePython).toHaveBeenCalledOnce());
+    const executionSignal = executePython.mock.calls[0]?.[1];
+    act(() => active.result.current.cancel());
+    expect(executionSignal?.aborted).toBe(true);
+    await act(async () => {
+      rejectExecution?.(new DOMException('Canceled', 'AbortError'));
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(active.result.current.execution.error).toBe(
+        'Python execution canceled.',
+      ),
+    );
+  });
+
+  it('blocks native attachments on incompatible models before provider I/O', async () => {
+    useWaterLilyStore.getState().addFileContexts({
+      createdAt: '2026-08-17T10:00:00.000Z',
+      files: [
+        {
+          attachment: {
+            id: 'attachment-pdf',
+            mediaType: 'application/pdf',
+            name: 'paper.pdf',
+            sha256: 'a'.repeat(64),
+            size: 3,
+          },
+          blockId: 'block-pdf',
+          edgeId: 'edge-pdf',
+          file: {
+            file: new File(['pdf'], 'paper.pdf', { type: 'application/pdf' }),
+            lastModified: 1,
+            mediaType: 'application/pdf',
+            name: 'paper.pdf',
+            size: 3,
+          },
+          nodeId: 'node-pdf',
+          position: { x: 0, y: 0 },
+          revisionId: 'revision-pdf',
+        },
+      ],
+      targetNodeId: 'node-synthesis',
+    });
+    const client = createClient({ load: vi.fn(() => Promise.resolve(null)) });
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+    await act(async () => {
+      await result.current.generate(['node-synthesis']);
+    });
+    expect(result.current.generation.error).toMatch(
+      /cannot receive paper.pdf/iu,
+    );
+    expect(client.generate).not.toHaveBeenCalled();
+  });
+
+  it('guards missing optional local service features and invalid selections', async () => {
+    const full = createClient();
+    const {
+      createProviderProfile: _create,
+      executePython: _execute,
+      removeProviderProfile: _remove,
+      uploadAttachment: _upload,
+      ...client
+    } = full;
+    void _create;
+    void _execute;
+    void _remove;
+    void _upload;
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client,
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+    await expect(
+      result.current.createProviderProfile({
+        apiKey: 'secret',
+        baseUrl: null,
+        label: 'Missing',
+        models: [],
+        providerType: 'openai',
+      }),
+    ).rejects.toThrow('storage is unavailable');
+    await expect(result.current.removeProviderProfile('id')).rejects.toThrow(
+      'storage is unavailable',
+    );
+    await expect(
+      result.current.uploadAttachment(new File(['x'], 'x.txt')),
+    ).rejects.toThrow('storage is unavailable');
+
+    await act(async () => {
+      await result.current.executePython('node-answer');
+    });
+    expect(result.current.execution.error).toMatch(/unavailable/iu);
+    act(() => result.current.setSelectedModelId('missing-model'));
+    await act(async () => {
+      await result.current.generate([]);
+      await result.current.generate(['node-answer']);
+    });
+    expect(result.current.generation.error).toMatch(
+      /choose an available model/iu,
+    );
+  });
+
+  it('records empty and timed-out Python output and honors excluded cells', async () => {
+    useWaterLilyStore.getState().addCodeCell({
+      blockId: 'block-code-output-cases',
+      createdAt: '2026-08-17T10:00:00.000Z',
+      edgeId: 'edge-code-output-cases',
+      nodeId: 'node-code-output-cases',
+      parentNodeId: 'node-answer',
+      revisionId: 'revision-code-output-cases',
+      source: 'value = 1',
+      title: null,
+    });
+    const executePython = vi
+      .fn<NonNullable<ServiceClient['executePython']>>()
+      .mockResolvedValueOnce({
+        durationMilliseconds: 1,
+        exitCode: 0,
+        stderr: '',
+        stdout: '',
+        timedOut: false,
+        truncated: false,
+      })
+      .mockResolvedValueOnce({
+        durationMilliseconds: 10_000,
+        exitCode: null,
+        stderr: '',
+        stdout: '',
+        timedOut: true,
+        truncated: false,
+      });
+    const { result } = renderHook(() =>
+      useWaterLilyService({
+        client: createClient({
+          executePython,
+          load: vi.fn(() => Promise.resolve(null)),
+        }),
+        enabled: true,
+        saveDelayMilliseconds: 100_000,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe('online'));
+    await act(async () => {
+      await result.current.executePython('node-answer');
+    });
+    expect(result.current.execution.error).toMatch(/select a Python/iu);
+
+    await act(async () => {
+      await result.current.executePython('node-code-output-cases');
+    });
+    let state = useWaterLilyStore.getState();
+    let output = state.graph.nodes[state.selectedNodeId ?? ''];
+    expect(
+      state.graph.revisions[output?.currentRevisionId ?? '']?.blocks[0],
+    ).toMatchObject({ text: '[no output]' });
+
+    await act(async () => {
+      await result.current.executePython('node-code-output-cases');
+    });
+    state = useWaterLilyStore.getState();
+    output = state.graph.nodes[state.selectedNodeId ?? ''];
+    expect(
+      state.graph.revisions[output?.currentRevisionId ?? '']?.blocks[0],
+    ).toMatchObject({
+      text: '[execution stopped after the local time limit]',
+    });
+
+    act(() => {
+      useWaterLilyStore
+        .getState()
+        .setContextSelection('node-code-output-cases', { mode: 'excluded' });
+    });
+    await act(async () => {
+      await result.current.executePython('node-code-output-cases');
+    });
+    expect(result.current.execution.error).toMatch(
+      /no included Python cells/iu,
+    );
   });
 });

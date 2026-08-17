@@ -7,7 +7,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import type * as ReactFlowModule from '@xyflow/react';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WaterLilyFlowNode } from './graphViewModel';
@@ -62,16 +62,38 @@ import { sampleGraph } from '../sampleGraph';
 import { useWaterLilyStore } from '../state/waterlilyStore';
 import { GraphCanvas } from './GraphCanvas';
 
+const uploadAttachment = vi.fn((file: File) =>
+  Promise.resolve({
+    id: `attachment-${file.name}`,
+    mediaType: file.type || 'application/octet-stream',
+    name: file.name,
+    sha256: 'a'.repeat(64),
+    size: file.size,
+  }),
+);
+
+function renderCanvas(props: Partial<ComponentProps<typeof GraphCanvas>> = {}) {
+  return render(
+    <GraphCanvas
+      graph={sampleGraph}
+      model={null}
+      uploadAttachment={uploadAttachment}
+      {...props}
+    />,
+  );
+}
+
 describe('GraphCanvas', () => {
   beforeEach(() => {
     useWaterLilyStore.getState().reset();
     capture.flow = undefined;
     capture.miniMap = undefined;
     capture.screenToFlowPosition.mockClear();
+    uploadAttachment.mockClear();
   });
 
   it('wires selection, dragging, deselection, and minimap semantics', () => {
-    render(<GraphCanvas graph={sampleGraph} />);
+    renderCanvas();
     const flow = capture.flow;
     const miniMap = capture.miniMap;
     expect(flow).toBeDefined();
@@ -132,7 +154,7 @@ describe('GraphCanvas', () => {
       nodeIds: ['node-answer', 'node-side-answer'],
       title: 'Review path',
     });
-    render(<GraphCanvas graph={sampleGraph} />);
+    renderCanvas();
     const flow = capture.flow;
     const miniMap = capture.miniMap;
     expect(flow).toBeDefined();
@@ -182,15 +204,13 @@ describe('GraphCanvas', () => {
   });
 
   it('projects active generation nodes and edges into React Flow', () => {
-    render(
-      <GraphCanvas
-        activeFlow={{
-          edgeIds: ['edge-answer-synthesis'],
-          nodeIds: ['node-answer', 'node-synthesis'],
-        }}
-        graph={sampleGraph}
-      />,
-    );
+    renderCanvas({
+      activeFlow: {
+        edgeIds: ['edge-answer-synthesis'],
+        mode: 'running',
+        nodeIds: ['node-answer', 'node-synthesis'],
+      },
+    });
     const flow = capture.flow;
     expect(flow).toBeDefined();
     if (flow === undefined) return;
@@ -210,7 +230,7 @@ describe('GraphCanvas', () => {
   });
 
   it('drops text files at canvas coordinates and connects them to selection', async () => {
-    render(<GraphCanvas graph={sampleGraph} />);
+    renderCanvas();
     const canvas = screen.getByRole('region', {
       name: 'Conversation graph canvas',
     });
@@ -226,7 +246,7 @@ describe('GraphCanvas', () => {
 
     fireEvent.dragEnter(canvas, { dataTransfer });
     expect(
-      screen.getByText('Connect text files to this context'),
+      screen.getByText('Connect files to this context'),
     ).toBeInTheDocument();
     fireEvent.dragOver(canvas, { dataTransfer });
     expect(dataTransfer.dropEffect).toBe('copy');
@@ -260,32 +280,39 @@ describe('GraphCanvas', () => {
       x: 300,
       y: 200,
     });
+    expect(uploadAttachment).toHaveBeenCalledWith(file);
   });
 
   it('shows safe validation feedback and leaves the graph unchanged', async () => {
     const nodeCount = Object.keys(
       useWaterLilyStore.getState().graph.nodes,
     ).length;
-    render(<GraphCanvas graph={sampleGraph} />);
+    renderCanvas();
     const canvas = screen.getByRole('region', {
       name: 'Conversation graph canvas',
     });
     const dataTransfer = {
       dropEffect: 'none',
-      files: [new File(['%PDF'], 'paper.pdf', { type: 'application/pdf' })],
+      files: [
+        new File(['program'], 'program.exe', {
+          type: 'application/x-msdownload',
+        }),
+      ],
       types: ['Files'],
     };
 
     fireEvent.dragEnter(canvas, { dataTransfer });
     fireEvent.dragLeave(canvas, { dataTransfer });
     expect(
-      screen.queryByText('Connect text files to this context'),
+      screen.queryByText('Connect files to this context'),
     ).not.toBeInTheDocument();
     fireEvent.drop(canvas, { dataTransfer });
 
     await waitFor(() => {
       expect(
-        screen.getByText('paper.pdf is not a supported text file.'),
+        screen.getByText(
+          'program.exe is not a supported native attachment type.',
+        ),
       ).toBeInTheDocument();
     });
     expect(Object.keys(useWaterLilyStore.getState().graph.nodes)).toHaveLength(
@@ -295,7 +322,7 @@ describe('GraphCanvas', () => {
 
   it('creates multiple standalone file nodes and ignores non-file drags', async () => {
     useWaterLilyStore.getState().selectNode(null);
-    render(<GraphCanvas graph={sampleGraph} />);
+    renderCanvas();
     const canvas = screen.getByRole('region', {
       name: 'Conversation graph canvas',
     });
@@ -309,7 +336,7 @@ describe('GraphCanvas', () => {
     fireEvent.dragLeave(canvas, { dataTransfer: textTransfer });
     fireEvent.drop(canvas, { dataTransfer: textTransfer });
     expect(
-      screen.queryByText('Connect text files to this context'),
+      screen.queryByText('Connect files to this context'),
     ).not.toBeInTheDocument();
 
     const dataTransfer = {
@@ -327,7 +354,7 @@ describe('GraphCanvas', () => {
     ).toBeInTheDocument();
     fireEvent.dragLeave(canvas, { dataTransfer });
     expect(
-      screen.getByText('Connect text files to this context'),
+      screen.getByText('Connect files to this context'),
     ).toBeInTheDocument();
     fireEvent.drop(canvas, { dataTransfer });
 

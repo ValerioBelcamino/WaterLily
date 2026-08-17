@@ -10,6 +10,7 @@ import {
   Focus,
   FolderPlus,
   GitMerge,
+  KeyRound,
   LayoutDashboard,
   Search,
   Upload,
@@ -28,6 +29,7 @@ import {
   type OperationKind,
   type OperationSubmission,
 } from './OperationDialog';
+import { ProviderProfileDialog } from './ProviderProfileDialog';
 import { Sidebar } from './Sidebar';
 import { useWaterLilyStore, type ViewMode } from './state/waterlilyStore';
 
@@ -63,8 +65,10 @@ function importId(kind: ImportEntityKind): string {
 export function App() {
   const [dialog, setDialog] = useState<OperationKind | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [providerDialogOpen, setProviderDialogOpen] = useState(false);
   const service = useWaterLilyService();
   const addGroup = useWaterLilyStore((state) => state.addGroup);
+  const addCodeCell = useWaterLilyStore((state) => state.addCodeCell);
   const branch = useWaterLilyStore((state) => state.branch);
   const contextSelections = useWaterLilyStore(
     (state) => state.contextSelections,
@@ -91,6 +95,9 @@ export function App() {
       : nodeTitle(graph, selectedNodeId);
   const activeProvider = service.providers.find(
     (provider) => provider.id === service.selectedProviderId,
+  );
+  const activeModel = activeProvider?.models.find(
+    (model) => model.id === service.selectedModelId,
   );
   const generationActive = service.generation.status !== 'idle';
   const statusMessage =
@@ -124,6 +131,20 @@ export function App() {
       return;
     }
     if (selectedNodeId === null) throw new Error('Select a node first.');
+    if (submission.kind === 'code') {
+      addCodeCell({
+        blockId: createPortableId('block'),
+        createdAt,
+        edgeId: createPortableId('edge'),
+        nodeId: createPortableId('node'),
+        parentNodeId: selectedNodeId,
+        revisionId: createPortableId('revision'),
+        source: submission.source,
+        title: submission.title,
+      });
+      setNotice('Python cell added to the selected flow.');
+      return;
+    }
     if (submission.kind === 'branch') {
       branch({
         edgeId: createPortableId('edge'),
@@ -270,6 +291,35 @@ export function App() {
                   ))}
                 </select>
               </label>
+              <label>
+                <span className="sr-only">Model</span>
+                <select
+                  aria-label="Model"
+                  disabled={activeProvider === undefined || generationActive}
+                  value={service.selectedModelId ?? ''}
+                  onChange={(event) =>
+                    service.setSelectedModelId(event.target.value)
+                  }
+                >
+                  <option value="" disabled>
+                    No model
+                  </option>
+                  {activeProvider?.models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                aria-label="Manage provider profiles"
+                disabled={generationActive}
+                title="Manage local API keys and model profiles"
+                type="button"
+                onClick={() => setProviderDialogOpen(true)}
+              >
+                <KeyRound aria-hidden="true" size={16} />
+              </button>
             </div>
             <button type="button" disabled title="Search coming soon">
               <Search aria-hidden="true" size={17} />
@@ -294,7 +344,12 @@ export function App() {
         <div className="workspace__body">
           <div className="workspace__surface">
             {viewMode === 'canvas' ? (
-              <GraphCanvas activeFlow={service.activeFlow} graph={graph} />
+              <GraphCanvas
+                activeFlow={service.activeFlow}
+                graph={graph}
+                model={activeModel ?? null}
+                uploadAttachment={service.uploadAttachment}
+              />
             ) : (
               <FocusView
                 graph={graph}
@@ -308,9 +363,11 @@ export function App() {
             </div>
           </div>
           <Inspector
+            canExecute={service.status === 'online' && selectedNodeId !== null}
             canGenerate={
               service.status === 'online' &&
               activeProvider?.available === true &&
+              activeModel !== undefined &&
               selectedNodeId !== null
             }
             contextSelection={
@@ -320,16 +377,22 @@ export function App() {
             }
             graph={graph}
             generation={service.generation}
+            execution={service.execution}
             nodeId={selectedNodeId}
             onBranch={() => setDialog('branch')}
             onCancel={service.cancel}
+            onCreateCode={() => setDialog('code')}
             onContextSelectionChange={(selection) => {
               if (selectedNodeId !== null)
                 setContextSelection(selectedNodeId, selection);
             }}
             onGenerate={() => {
+              if (selectedNodeIds.length > 0)
+                void service.generate(selectedNodeIds);
+            }}
+            onRunCode={() => {
               if (selectedNodeId !== null)
-                void service.generate(selectedNodeId);
+                void service.executePython(selectedNodeId);
             }}
             onMerge={() => setDialog('merge')}
             onSplit={() => setDialog('split')}
@@ -351,6 +414,14 @@ export function App() {
           selectedTitle={selectedTitle}
         />
       )}
+      {providerDialogOpen ? (
+        <ProviderProfileDialog
+          onClose={() => setProviderDialogOpen(false)}
+          onCreate={service.createProviderProfile}
+          onRemove={service.removeProviderProfile}
+          profiles={service.providers}
+        />
+      ) : null}
     </div>
   );
 }

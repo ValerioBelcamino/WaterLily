@@ -3,40 +3,53 @@ import type { ContextSelection } from '@waterlily/context-engine';
 import {
   GitBranch,
   GitMerge,
+  Code2,
+  Play,
   Sparkles,
   Split,
   Square,
   Tag,
 } from 'lucide-react';
 
-import type { GenerationViewState } from './api/useWaterLilyService';
+import type {
+  GenerationViewState,
+  PythonExecutionViewState,
+} from './api/useWaterLilyService';
 import { nodeTitle, revisionText } from './graph/graphViewModel';
 
 export interface InspectorProps {
   readonly canGenerate: boolean;
+  readonly canExecute: boolean;
+  readonly execution: PythonExecutionViewState;
   readonly generation: GenerationViewState;
   readonly graph: GraphSnapshot;
   readonly contextSelection: ContextSelection;
   readonly nodeId: string | null;
   readonly onBranch: () => void;
   readonly onCancel: () => void;
+  readonly onCreateCode: () => void;
   readonly onContextSelectionChange: (selection: ContextSelection) => void;
   readonly onGenerate: () => void;
+  readonly onRunCode: () => void;
   readonly onMerge: () => void;
   readonly onSplit: () => void;
   readonly selectedCount: number;
 }
 
 export function Inspector({
+  canExecute,
   canGenerate,
   contextSelection,
   generation,
+  execution,
   graph,
   nodeId,
   onBranch,
   onCancel,
+  onCreateCode,
   onContextSelectionChange,
   onGenerate,
+  onRunCode,
   onMerge,
   onSplit,
   selectedCount,
@@ -77,7 +90,11 @@ export function Inspector({
         <span>{node.role ?? 'document'}</span>
         <span>{node.kind}</span>
       </div>
-      <p className="inspector__content">{revisionText(graph, node.id)}</p>
+      <p
+        className={`inspector__content${node.kind === 'code' || node.kind === 'execution' ? ' inspector__content--code' : ''}`}
+      >
+        {revisionText(graph, node.id)}
+      </p>
       <dl className="inspector__facts">
         <div>
           <dt>Incoming</dt>
@@ -133,6 +150,24 @@ export function Inspector({
           )}
           {generation.status === 'idle' ? 'Generate' : 'Stop'}
         </button>
+        {node.kind === 'code' ? (
+          <button
+            type="button"
+            disabled={!canExecute && execution.status === 'idle'}
+            onClick={execution.status === 'idle' ? onRunCode : onCancel}
+            title="Replay included Python cells through this cell"
+          >
+            {execution.status === 'idle' ? (
+              <Play aria-hidden="true" size={15} />
+            ) : (
+              <Square aria-hidden="true" size={15} />
+            )}
+            {execution.status === 'idle' ? 'Run' : 'Stop'}
+          </button>
+        ) : null}
+        <button type="button" onClick={onCreateCode}>
+          <Code2 aria-hidden="true" size={15} /> Code
+        </button>
         <button type="button" onClick={onBranch}>
           <GitBranch aria-hidden="true" size={15} /> Branch
         </button>
@@ -152,6 +187,22 @@ export function Inspector({
           <GitMerge aria-hidden="true" size={15} /> Merge
         </button>
       </div>
+      {execution.status !== 'idle' || execution.error !== null ? (
+        <section className="generation-panel" aria-live="polite">
+          <header>
+            <strong>
+              {execution.status === 'running'
+                ? 'Running local Python'
+                : 'Last Python run'}
+            </strong>
+          </header>
+          {execution.error === null ? null : (
+            <p className="generation-panel__error" role="alert">
+              {execution.error}
+            </p>
+          )}
+        </section>
+      ) : null}
       {generation.status !== 'idle' ||
       generation.error !== null ||
       generation.reasoning.length > 0 ||
