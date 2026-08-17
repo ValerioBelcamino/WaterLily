@@ -1,4 +1,10 @@
-export { canonicalJson, sha256 } from './canonical.js';
+export {
+  createWaterLilyArchive,
+  parseWaterLilyArchive,
+  validateArchiveWorkspace,
+  waterLilyArchiveHash,
+} from './archive.js';
+export { canonicalJson, sha256, sha256Bytes } from './canonical.js';
 export {
   createGraphDocument,
   exportGraphDocument,
@@ -15,14 +21,24 @@ export {
 } from './errors.js';
 export {
   cloneGraphDocument,
+  cloneGraphSnapshot,
   importGraphDocument,
   mergeGraphDocument,
+  mergeGraphSnapshot,
 } from './importing.js';
 export { GRAPH_DOCUMENT_SCHEMA } from './schema.js';
 export type {
   CanvasPosition,
+  ArchiveAttachment,
+  ArchiveAttachmentDescriptor,
+  ArchiveContextSelection,
+  ArchiveWorkspaceStateV1,
+  ArchiveWorkspaceV1,
+  CloneGraphSnapshotInput,
+  CreateWaterLilyArchiveInput,
   CreateGraphDocumentInput,
   ExportedGraphDocument,
+  ExportedWaterLilyArchive,
   GraphDocumentV1,
   GraphImportPreview,
   GraphViewGroup,
@@ -33,4 +49,8 @@ export type {
   ImportMapping,
   ImportResult,
   MergeGraphDocumentInput,
+  MergeGraphSnapshotInput,
+  ParsedWaterLilyArchive,
+  WaterLilyArchiveLimits,
+  WaterLilyArchiveManifestV1,
 } from './types.js';

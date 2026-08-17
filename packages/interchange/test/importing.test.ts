@@ -8,8 +8,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   cloneGraphDocument,
+  cloneGraphSnapshot,
   importGraphDocument,
   mergeGraphDocument,
+  mergeGraphSnapshot,
   serializeGraphDocument,
   type GraphDocumentV1,
   type IdRemapper,
@@ -211,5 +213,34 @@ describe('graph document importing', () => {
     expect(() => cloneGraphDocument(invalid, { remapId: remap })).toThrow(
       'unsupported',
     );
+  });
+
+  it('clones and merges validated snapshots with default view state', () => {
+    const cloned = cloneGraphSnapshot({
+      graph: sampleDocument().graph,
+      remapId: prefixedRemapper,
+    });
+    expect(cloned.view).toEqual({ groups: [], positions: {} });
+
+    const merged = mergeGraphSnapshot({
+      remapId: prefixedRemapper,
+      sourceGraph: sampleDocument().graph,
+      targetGraph: targetGraph(),
+    });
+    expect(merged.graph.id).toBe('target-graph');
+    expect(merged.view).toEqual({ groups: [], positions: {} });
+  });
+
+  it('rejects an incomplete remapper result at its first graph reference', () => {
+    const incomplete: IdRemapper = (kind, id) =>
+      kind === 'revision' && id === 'revision-user'
+        ? (undefined as unknown as string)
+        : `complete-${kind}-${id}`;
+    expect(() =>
+      cloneGraphSnapshot({
+        graph: sampleDocument().graph,
+        remapId: incomplete,
+      }),
+    ).toThrow('mapping is incomplete');
   });
 });

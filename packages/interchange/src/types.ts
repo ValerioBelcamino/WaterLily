@@ -1,5 +1,78 @@
 import type { GraphSnapshot } from '@waterlily/domain';
 
+export type ArchiveContextSelection =
+  | { readonly mode: 'excluded' | 'full' }
+  | { readonly blockIds: readonly string[]; readonly mode: 'blocks' };
+
+export interface ArchiveWorkspaceStateV1 {
+  readonly contextSelections: Readonly<Record<string, ArchiveContextSelection>>;
+  readonly version: 1;
+  readonly view: GraphViewState;
+}
+
+export interface ArchiveWorkspaceV1 {
+  readonly graph: GraphSnapshot;
+  readonly state: ArchiveWorkspaceStateV1;
+}
+
+export interface ArchiveAttachmentDescriptor {
+  readonly id: string;
+  readonly mediaType: string;
+  readonly name: string;
+  readonly sha256: string;
+  readonly size: number;
+}
+
+export interface ArchiveAttachment {
+  readonly bytes: Uint8Array;
+  readonly descriptor: ArchiveAttachmentDescriptor;
+}
+
+export interface WaterLilyArchiveManifestV1 {
+  readonly attachments: readonly (ArchiveAttachmentDescriptor & {
+    readonly path: string;
+  })[];
+  readonly exportedAt: string;
+  readonly exporter: {
+    readonly name: string;
+    readonly version: string;
+  };
+  readonly format: 'waterlily/archive';
+  readonly schemaVersion: 1;
+  readonly workspace: {
+    readonly path: 'workspace.json';
+    readonly sha256: string;
+    readonly size: number;
+  };
+}
+
+export interface CreateWaterLilyArchiveInput {
+  readonly attachments: readonly ArchiveAttachment[];
+  readonly exportedAt: string;
+  readonly exporter: WaterLilyArchiveManifestV1['exporter'];
+  readonly workspace: ArchiveWorkspaceV1;
+}
+
+export interface ExportedWaterLilyArchive {
+  readonly bytes: Uint8Array;
+  readonly manifest: WaterLilyArchiveManifestV1;
+  readonly sha256: string;
+}
+
+export interface ParsedWaterLilyArchive {
+  readonly attachments: readonly ArchiveAttachment[];
+  readonly manifest: WaterLilyArchiveManifestV1;
+  readonly workspace: ArchiveWorkspaceV1;
+}
+
+export interface WaterLilyArchiveLimits {
+  readonly maxAttachmentBytes?: number;
+  readonly maxAttachments?: number;
+  readonly maxCompressedBytes?: number;
+  readonly maxExpandedBytes?: number;
+  readonly maxEntries?: number;
+}
+
 export interface CanvasPosition {
   readonly x: number;
   readonly y: number;
@@ -57,6 +130,19 @@ export interface ImportResult {
 export interface ImportGraphOptions {
   readonly graphId?: string;
   readonly remapId: IdRemapper;
+}
+
+export interface CloneGraphSnapshotInput extends ImportGraphOptions {
+  readonly graph: GraphSnapshot;
+  readonly view?: Partial<GraphViewState>;
+}
+
+export interface MergeGraphSnapshotInput {
+  readonly remapId: IdRemapper;
+  readonly sourceGraph: GraphSnapshot;
+  readonly sourceView?: Partial<GraphViewState>;
+  readonly targetGraph: GraphSnapshot;
+  readonly targetView?: Partial<GraphViewState>;
 }
 
 export interface MergeGraphDocumentInput {

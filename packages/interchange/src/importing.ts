@@ -8,8 +8,13 @@ import {
 } from '@waterlily/domain';
 
 import { failInterchange } from './errors.js';
-import { parseGraphDocument, validateGraphDocument } from './document.js';
+import {
+  parseGraphDocument,
+  validateGraphDocument,
+  validateGraphViewState,
+} from './document.js';
 import type {
+  CloneGraphSnapshotInput,
   GraphDocumentV1,
   GraphViewGroup,
   GraphViewState,
@@ -18,6 +23,7 @@ import type {
   ImportMapping,
   ImportResult,
   MergeGraphDocumentInput,
+  MergeGraphSnapshotInput,
 } from './types.js';
 
 function sortedIds(
@@ -78,15 +84,15 @@ function importMetadata(
 }
 
 function remapView(
-  document: GraphDocumentV1,
+  view: GraphViewState,
   mapping: ImportMapping,
 ): GraphViewState {
   const positions = Object.fromEntries(
-    Object.entries(document.view.positions)
+    Object.entries(view.positions)
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([nodeId, position]) => [mapped(mapping.nodes, nodeId), position]),
   );
-  const groups = document.view.groups.map((group): GraphViewGroup => ({
+  const groups = view.groups.map((group): GraphViewGroup => ({
     ...group,
     id: mapped(mapping.groups, group.id),
     nodeIds: group.nodeIds.map((nodeId) => mapped(mapping.nodes, nodeId)),
@@ -99,28 +105,44 @@ export function cloneGraphDocument(
   options: ImportGraphOptions,
 ): ImportResult {
   document = validateGraphDocument(document);
+  return cloneGraphSnapshot({
+    graph: document.graph,
+    ...(options.graphId === undefined ? {} : { graphId: options.graphId }),
+    remapId: options.remapId,
+    view: document.view,
+  });
+}
+
+export function cloneGraphSnapshot(
+  input: CloneGraphSnapshotInput,
+): ImportResult {
+  validateGraph(input.graph);
+  const view = validateGraphViewState(input.graph, {
+    groups: input.view?.groups ?? [],
+    positions: input.view?.positions ?? {},
+  });
   const mapping: ImportMapping = {
-    edges: buildMap('edge', sortedIds(document.graph.edges), options.remapId),
-    graphId: options.graphId ?? options.remapId('graph', document.graph.id),
+    edges: buildMap('edge', sortedIds(input.graph.edges), input.remapId),
+    graphId: input.graphId ?? input.remapId('graph', input.graph.id),
     groups: buildMap(
       'group',
-      document.view.groups
+      view.groups
         .map((group) => group.id)
         .sort((left, right) => left.localeCompare(right)),
-      options.remapId,
+      input.remapId,
     ),
-    nodes: buildMap('node', sortedIds(document.graph.nodes), options.remapId),
+    nodes: buildMap('node', sortedIds(input.graph.nodes), input.remapId),
     revisions: buildMap(
       'revision',
-      sortedIds(document.graph.revisions),
-      options.remapId,
+      sortedIds(input.graph.revisions),
+      input.remapId,
     ),
   };
   assertUniqueMapping(mapping);
 
   const nodes = Object.fromEntries(
-    sortedIds(document.graph.nodes).map((id) => {
-      const node = document.graph.nodes[id] as GraphNode;
+    sortedIds(input.graph.nodes).map((id) => {
+      const node = input.graph.nodes[id] as GraphNode;
       const remappedId = mapped(mapping.nodes, id);
       return [
         remappedId,
@@ -133,23 +155,23 @@ export function cloneGraphDocument(
     }),
   );
   const revisions = Object.fromEntries(
-    sortedIds(document.graph.revisions).map((id) => {
-      const revision = document.graph.revisions[id] as NodeRevision;
+    sortedIds(input.graph.revisions).map((id) => {
+      const revision = input.graph.revisions[id] as NodeRevision;
       const remappedId = mapped(mapping.revisions, id);
       return [
         remappedId,
         {
           ...revision,
           id: remappedId,
-          metadata: importMetadata(revision, document.graph.id),
+          metadata: importMetadata(revision, input.graph.id),
           nodeId: mapped(mapping.nodes, revision.nodeId),
         },
       ];
     }),
   );
   const edges = Object.fromEntries(
-    sortedIds(document.graph.edges).map((id) => {
-      const edge = document.graph.edges[id] as GraphEdge;
+    sortedIds(input.graph.edges).map((id) => {
+      const edge = input.graph.edges[id] as GraphEdge;
       const remappedId = mapped(mapping.edges, id);
       return [
         remappedId,
@@ -171,14 +193,14 @@ export function cloneGraphDocument(
     }),
   );
   const graph: GraphSnapshot = {
-    ...document.graph,
+    ...input.graph,
     edges,
     id: mapping.graphId,
     nodes,
     revisions,
   };
   validateGraph(graph);
-  return { graph, mapping, view: remapView(document, mapping) };
+  return { graph, mapping, view: remapView(view, mapping) };
 }
 
 export function importGraphDocument(
@@ -208,12 +230,12 @@ function targetView(input: MergeGraphDocumentInput): GraphViewState {
   };
 }
 
-export function mergeGraphDocument(
-  input: MergeGraphDocumentInput,
-): ImportResult {
+function mergedGraphSnapshot(input: MergeGraphSnapshotInput): ImportResult {
   validateGraph(input.targetGraph);
-  const imported = cloneGraphDocument(input.document, {
+  const imported = cloneGraphSnapshot({
+    graph: input.sourceGraph,
     remapId: input.remapId,
+    ...(input.sourceView === undefined ? {} : { view: input.sourceView }),
   });
   const occupied = targetEntityIds(input.targetGraph);
   const importedIds = [
@@ -231,7 +253,10 @@ export function mergeGraphDocument(
       },
     );
   }
-  const currentView = targetView(input);
+  const currentView: GraphViewState = {
+    groups: [...(input.targetView?.groups ?? [])],
+    positions: { ...(input.targetView?.positions ?? {}) },
+  };
   const currentGroupIds = new Set(currentView.groups.map((group) => group.id));
   const groupCollision = imported.view.groups.find((group) =>
     currentGroupIds.has(group.id),
@@ -265,4 +290,23 @@ export function mergeGraphDocument(
       positions: { ...currentView.positions, ...imported.view.positions },
     },
   };
+}
+
+export function mergeGraphSnapshot(
+  input: MergeGraphSnapshotInput,
+): ImportResult {
+  return mergedGraphSnapshot(input);
+}
+
+export function mergeGraphDocument(
+  input: MergeGraphDocumentInput,
+): ImportResult {
+  const document = validateGraphDocument(input.document);
+  return mergedGraphSnapshot({
+    remapId: input.remapId,
+    sourceGraph: document.graph,
+    sourceView: document.view,
+    targetGraph: input.targetGraph,
+    targetView: targetView(input),
+  });
 }

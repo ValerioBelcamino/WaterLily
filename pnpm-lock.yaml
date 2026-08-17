@@ -60,6 +60,9 @@ catalogs:
     fast-check:
       specifier: ^4.9.0
       version: 4.9.0
+    fflate:
+      specifier: ^0.8.3
+      version: 0.8.3
     jsdom:
       specifier: ^30.0.1
       version: 30.0.1
@@ -263,6 +266,9 @@ importers:
       '@waterlily/domain':
         specifier: workspace:*
         version: link:../domain
+      fflate:
+        specifier: 'catalog:'
+        version: 0.8.3
 
   packages/providers: {}
 
@@ -1951,6 +1957,12 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.3:
+    resolution:
+      {
+        integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==,
+      }
 
   file-entry-cache@8.0.0:
     resolution:
@@ -3941,6 +3953,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
       picomatch: 4.0.5
+
+  fflate@0.8.3: {}
 
   file-entry-cache@8.0.0:
     dependencies:
