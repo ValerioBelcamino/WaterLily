@@ -33,15 +33,20 @@ complete report promptly and coordinate disclosure based on severity.
 - Native attachment blobs are stored with user-only permissions and are sent
   only when they are included in a compiled flow and the selected model
   advertises compatible native-file support.
-- Imported JSON is untrusted, strictly validated, and size-limited. Plain JSON
-  v1 rejects attachments; future archives and plugins require separate threat
-  models.
+- Imported JSON and `.waterlily` archives are untrusted. Archives reject unsafe
+  or duplicate ZIP paths, unexpected entries, excessive compressed/expanded
+  sizes, invalid graph state, credential-shaped fields, and attachment or
+  workspace checksum mismatches before graph mutation. Import uses best-effort
+  compensating deletion for blobs uploaded before a failed workspace commit;
+  crash-recovery cleanup for orphan blobs is not implemented yet.
 - Provider diagnostics are bounded and sanitized. The service does not log
   request bodies or streamed content.
 - The local Python runner is not a sandbox. It strips provider credentials from
   the child environment and applies time/output limits, but executed code keeps
   the user's filesystem and network authority. Treat untrusted or
   model-generated code as arbitrary code execution.
+
+See [`docs/sandboxing.md`](docs/sandboxing.md) for the execution threat model.
 
 ## Credential hygiene
 

@@ -34,8 +34,12 @@ accepted RFCs.
   from the workspace toolbar. Secrets never enter browser state.
 - Persist graph, context selections, positions, and groups atomically in local
   SQLite with optimistic conflict detection.
-- Import another graph with collision-safe identifier remapping and export
-  canonical, checksummed JSON.
+- Save or share a complete conversation as one checksummed `.waterlily` file.
+  The portable archive includes the graph, layout, groups, context choices, and
+  attachment bytes, but never provider credentials. Imports validate every file
+  before merging and remap all local identifiers.
+- Import legacy attachment-free graph JSON with collision-safe identifier
+  remapping.
 
 ## Quick start
 
@@ -102,7 +106,33 @@ recreated.
 This runner is intentionally local and offline, but it is **not a security
 sandbox**. Code has the same filesystem and network permissions as your user.
 Only run code you trust and inspect model-generated code before executing it.
-Runs stop after 10 seconds and capture at most 256 KiB of combined output.
+Runs stop after 10 seconds and capture at most 256 KiB of combined output. For a
+threat-model explanation and the proposed safe execution modes, read
+[`docs/sandboxing.md`](docs/sandboxing.md).
+
+## Portable conversations
+
+Choose **Export** to download `<graph-id>.waterlily`. This is the resumable and
+shareable format: it contains the complete workspace plus every referenced
+attachment. On import, WaterLily verifies ZIP paths, byte limits, canonical
+metadata, and SHA-256 checksums before changing the graph. Attachment bytes are
+restored under new local IDs, graph IDs are collision-safely remapped, and the
+imported workspace is merged into the active graph.
+
+The older `waterlily/graph` JSON remains useful for inspection and integrations,
+but it deliberately cannot contain attachment references or context-selection
+state. Neither format includes API keys. The archive contract is specified in
+[RFC-006](docs/rfcs/006-waterlily-archive.md).
+
+## Desktop releases
+
+Yes, WaterLily can become a normal one-click desktop application whose users do
+not install Node.js, Python, or pnpm. The lowest-risk first release is an
+Electron wrapper around the existing TypeScript UI and local service, with the
+runtime, SQLite module, and safe WebAssembly Python mode bundled into signed
+installers. The release plan and its security gates are in
+[`docs/desktop-distribution.md`](docs/desktop-distribution.md). This packaging
+work is planned; the current alpha still uses the developer quick start below.
 
 ## Architecture
 
@@ -122,7 +152,7 @@ web ──► api-contract ◄── local service ──► providers
 | `packages/domain`         | Immutable graph, revisions, typed edges, invariants        |
 | `packages/context-engine` | Deterministic multi-head context compilation and hashes    |
 | `packages/workflows`      | Branch, split, merge, generation, and replayable commits   |
-| `packages/interchange`    | Canonical JSON v1, schema, import, clone, merge, export    |
+| `packages/interchange`    | JSON v1 and `.waterlily` archive validation and remapping  |
 | `packages/providers`      | Provider-neutral streaming, Responses, compatible adapters |
 | `packages/database`       | Reviewed SQLite migrations and repositories                |
 | `packages/api-contract`   | Strict browser/service request and stream validation       |
@@ -168,17 +198,18 @@ details.
 
 - This is a single-user local application; authentication, remote sync, and
   real-time collaboration are not implemented.
-- Plain JSON v1 rejects graphs containing attachment references until the
-  checksummed archive extension is specified. Native attachment bytes therefore
-  remain local and attachment-bearing graphs cannot yet be exported portably.
-- Python execution is host-local rather than container-sandboxed. JavaScript,
+- Archive attachment restoration uses a compensating transaction: invalid
+  imports never alter the graph and failed saves trigger attachment deletion,
+  but a process or power failure at the exact point between upload and commit
+  can leave an unreferenced local blob for future cleanup.
+- Python execution is host-local rather than security-sandboxed. JavaScript,
   shell, and richer notebook display outputs are not implemented yet.
 - Generic OpenAI-compatible model capability discovery is not standardized;
   those profiles currently default to no native-file support.
 - Imported graphs merge into the active workspace. A multi-document workspace
   browser and graph renaming flow are still planned.
-- Browser visual-regression coverage and packaged desktop distribution remain
-  public-alpha work.
+- Browser visual-regression coverage, a safe WebAssembly code runner, and
+  packaged desktop distribution remain public-alpha work.
 
 ## Contributing
 

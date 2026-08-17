@@ -634,16 +634,16 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Implemented
 
-- A selected graph head now previews its exact compiler-derived context in
-  blue. Shift-selected heads preview an ordered multi-head flow, while an
-  in-flight request temporarily replaces the preview with the green pulsing
-  execution flow. Excluded nodes and non-context paths remain visibly inactive.
+- A selected graph head now previews its exact compiler-derived context in blue.
+  Shift-selected heads preview an ordered multi-head flow, while an in-flight
+  request temporarily replaces the preview with the green pulsing execution
+  flow. Excluded nodes and non-context paths remain visibly inactive.
 - File drops now upload opaque bytes to a permission-restricted local store and
-  put only checksummed attachment descriptors in the graph. The OpenAI
-  Responses adapter sends images as native image inputs and other supported
-  files as native file inputs. Model capability descriptors drive red
-  incompatibility states and block a request before transmission when an
-  unsupported file is included.
+  put only checksummed attachment descriptors in the graph. The OpenAI Responses
+  adapter sends images as native image inputs and other supported files as
+  native file inputs. Model capability descriptors drive red incompatibility
+  states and block a request before transmission when an unsupported file is
+  included.
 - The loopback service now manages several named OpenAI, DeepSeek, and generic
   OpenAI-compatible profiles. Credentials are atomically persisted outside the
   repository with `0700` directory and `0600` file permissions; browser health
@@ -675,13 +675,13 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
 
 ### Defects caught and corrected during verification
 
-- The first attachment browser run revealed that API workspace validation
-  reused the portable JSON validator and rejected attachment blocks. A reusable
+- The first attachment browser run revealed that API workspace validation reused
+  the portable JSON validator and rejected attachment blocks. A reusable
   view-state validator now preserves strict local validation without weakening
   the export prohibition.
 - The same browser path exposed a delayed autosave racing a generation commit.
-  Autosave timers now pause for the complete saving/streaming lifecycle, and
-  the end-to-end test asserts that no optimistic-conflict warning appears.
+  Autosave timers now pause for the complete saving/streaming lifecycle, and the
+  end-to-end test asserts that no optimistic-conflict warning appears.
 - The live service test reached a stale exact health fixture after provider
   descriptors gained models and capabilities. It now asserts the actual
   server-side public descriptors and separately checks that the credential is
@@ -703,3 +703,57 @@ nodes with provenance. RFC-002 was updated to match this safer behavior.
   generation metadata, health responses, or persisted workspaces.
 - `pnpm build`, `pnpm format:check`, `git diff --check`, and the ignored-file
   audit pass. `.env` remains untracked with mode `600`.
+
+## 2026-08-17 — Portable `.waterlily` workspaces
+
+### Implemented
+
+- Added the accepted `waterlily/archive` v1 ZIP format and `.waterlily` file
+  extension. A single download preserves the full immutable graph, canvas
+  positions, groups, context selections, and every attachment byte while
+  recursively rejecting credential-shaped metadata.
+- Archive readers enforce exact manifests, canonical paths, SHA-256 and byte
+  lengths, graph/view/context invariants, attachment-reference equality, and
+  compressed, expanded, entry, count, and per-file limits. Unsafe, duplicate,
+  missing, and unexpected ZIP entries fail before a workspace is returned.
+- The local service can integrity-check/download and delete attachments. Browser
+  import restores bytes under new local IDs, rewrites attachment blocks, remaps
+  graph/group/context-selection IDs, persists one merged workspace, and performs
+  compensating blob deletion after an upload or save failure.
+- Export and import are now first-class toolbar operations. Legacy
+  attachment-free graph JSON remains available through the import dialog; the
+  primary export is a portable archive.
+- Documented the current host-Python threat model, a WebAssembly Safe Python
+  design, and a consumer desktop release plan based on a sandboxed Electron UI,
+  typed privilege boundary, OS keychain, signed installers, and packaged-app
+  tests.
+
+### Defects caught and corrected during verification
+
+- The first Chromium export called a captured class method without its receiver,
+  so the private fetch client was unavailable. Attachment client methods are now
+  explicitly bound before asynchronous use, and the browser completes the real
+  download/import round trip.
+- Playwright stores downloads under a temporary filename without the original
+  extension. The E2E now re-uploads the exact downloaded bytes with the
+  suggested `.waterlily` filename, matching what an actual file picker supplies.
+- The initial archive tests passed behavior but missed the repository's 95%
+  interchange coverage gate. Corrupt primitive fields, canonical timestamps and
+  paths, conflicting/duplicate attachments, duplicate central-directory paths,
+  UTF-8 failures, and every resource-limit class were added without lowering the
+  gate.
+
+### Verification evidence
+
+- `pnpm check`: all 34 tasks pass; 450 deterministic tests pass across the nine
+  workspaces and the three explicitly billable tests remain skipped by default.
+- `pnpm test:coverage`: every package gate passes. Interchange reaches 99.55%
+  statements, 98.63% branches, 100% functions, and 99.53% lines; web reaches
+  96.96%, 90%, 97.41%, and 97.77% respectively.
+- `pnpm test:e2e`: Chromium uploads an attachment, persists and reloads the
+  workspace, downloads `graph-bioenergetics.waterlily`, imports those exact
+  bytes, restores the file, and observes a collision-safe merge from 10 to 20
+  nodes.
+- Production build, strict type checking, lint, formatting, and ZIP integrity
+  checks pass. No live provider request was needed because provider transport
+  and credentials were not changed.

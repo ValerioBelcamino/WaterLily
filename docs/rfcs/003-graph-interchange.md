@@ -1,6 +1,6 @@
 # RFC-003: Versioned graph interchange format
 
-- Status: Accepted for plain JSON v1; archive extension deferred
+- Status: Accepted for plain JSON v1; archive extension superseded by RFC-006
 - Date: 2026-08-05
 
 ## Goals
@@ -17,30 +17,8 @@ schema version `1`, exporter metadata, an immutable graph snapshot, positions,
 and presentation groups. It is supported only when the graph contains no
 attachment blocks.
 
-The future portable `.llmgraph` attachment container will be a ZIP archive:
-
-```text
-manifest.json
-graph.json
-attachments/<sha256>
-```
-
-The archive format is not part of the accepted v1 implementation. Export and
-import fail closed when attachment blocks require it.
-
-## Future archive manifest
-
-The manifest includes:
-
-- Format identifier and semantic schema version.
-- Exporting application name and version.
-- Creation timestamp.
-- Graph identifiers and file checksums.
-- Attachment media types, sizes, and hashes.
-- Optional original-source provenance.
-
-Provider credentials, authorization headers, private environment variables, and
-unredacted provider request headers are forbidden by schema and exporter.
+Portable attachment-bearing workspaces are specified separately by RFC-006 as
+`.waterlily` archives. Plain JSON remains intentionally attachment-free.
 
 ## Plain JSON v1 import behavior
 
@@ -75,8 +53,8 @@ out of scope because their deletion and permission semantics are unresolved.
   rejection are tested.
 - The package has 36 passing tests and exceeds 97% in every coverage dimension.
 
-## Archive acceptance requirements
+## Archive relationship
 
-The ZIP extension remains draft until corrupt checksums, duplicate paths, zip
-bombs, traversal, expanded-size limits, transactional attachment storage, and
-golden migration fixtures are implemented and verified.
+RFC-006 accepts the ZIP extension with checksum, path, expansion, credential,
+attachment restoration, and workspace-state rules. It does not change this plain
+JSON schema.
